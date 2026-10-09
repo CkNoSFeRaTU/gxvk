@@ -33,7 +33,12 @@ if get_option('enable_d3d8')
   subdir('d3d8')
 endif
 
+if get_option('enable_glide1x') or get_option('enable_glide2x') or get_option('enable_glide3x')
+  subdir('glide')
+endif
+
 # Nothing selected
-if not get_option('enable_d3d8') and not get_option('enable_d3d9') and not get_option('enable_dxgi')
+if not get_option('enable_d3d8') and not get_option('enable_d3d9') and not get_option('enable_dxgi') \
+and not get_option('enable_glide1x') and not get_option('enable_glide2x') and not get_option('enable_glide3x')
   warning('Nothing selected to be built.?')
 endif

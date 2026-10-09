@@ -1,0 +1,4 @@
+subprojects/.wraplock
+.vscode
+*.sh
+*.patch

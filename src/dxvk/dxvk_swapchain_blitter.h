@@ -175,6 +175,10 @@ namespace dxvk {
     void setCursorPos(
             VkRect2D            rect);
 
+    void hudStateToggle() {
+      m_hudEnabled = !m_hudEnabled;
+    }
+
   private:
 
     struct SpecConstants {
@@ -231,6 +235,7 @@ namespace dxvk {
     Rc<DxvkImage>       m_hudImage;
     Rc<DxvkImageView>   m_hudRtv;
     Rc<DxvkImageView>   m_hudSrv;
+    bool                m_hudEnabled = VK_TRUE;
 
     const DxvkPipelineLayout* m_blitLayout = nullptr;
     const DxvkPipelineLayout* m_cursorLayout = nullptr;

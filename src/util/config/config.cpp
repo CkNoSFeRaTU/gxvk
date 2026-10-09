@@ -1228,6 +1228,7 @@ namespace dxvk {
      * (with the "Modern Patch")                  */
     { R"(\\nfs3\.exe$)", {{
       { "d3d8.batching",                    "True" },
+      { "glide.card",                    "voodoo2" },
     }} },
     /* Need for Speed: High Stakes / Road         *
      * Challenge (with the "Modern Patch") -      *
@@ -1419,6 +1420,18 @@ namespace dxvk {
       { "d3d9.maxFrameRate",                 "-60" },
     }} },
 
+    /**********************************************/
+    /* Glide GAMES                                */
+    /**********************************************/
+
+    /* Unreal games have issues with blending and *
+     * gamma correction in fragment shader        */
+    { R"(\\DeusEx\.exe$)", {{
+      { "glide.ignoreGammaCorrection",      "True" },
+    }} },
+    { R"(\\UnrealTournament\.exe$)", {{
+      { "glide.ignoreGammaCorrection",      "True" },
+    }} },
   };
 
 
