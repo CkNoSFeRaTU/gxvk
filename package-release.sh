@@ -12,8 +12,8 @@ fi
 DXVK_VERSION="$1"
 DXVK_SRC_DIR=$(readlink -f "$0")
 DXVK_SRC_DIR=$(dirname "$DXVK_SRC_DIR")
-DXVK_BUILD_DIR=$(realpath "$2")"/dxvk-$DXVK_VERSION"
-DXVK_ARCHIVE_PATH=$(realpath "$2")"/dxvk-$DXVK_VERSION.tar.gz"
+DXVK_BUILD_DIR=$(realpath "$2")"/gxvk-$DXVK_VERSION"
+DXVK_ARCHIVE_PATH=$(realpath "$2")"/gxvk-$DXVK_VERSION.tar.gz"
 
 if [ -e "$DXVK_BUILD_DIR" ]; then
   echo "Build directory $DXVK_BUILD_DIR already exists"
@@ -26,7 +26,7 @@ opt_nopackage=0
 opt_devbuild=0
 opt_buildid=false
 opt_64_only=0
-opt_32_only=0
+opt_32_only=1
 
 crossfile="build-win"
 
@@ -89,7 +89,7 @@ function build_arch {
 function package {
   cd "$DXVK_BUILD_DIR/.."
   tar -czf "$DXVK_ARCHIVE_PATH" "dxvk-$DXVK_VERSION"
-  rm -R "dxvk-$DXVK_VERSION"
+  rm -R "gxvk-$DXVK_VERSION"
 }
 
 if [ $opt_32_only -eq 0 ]; then

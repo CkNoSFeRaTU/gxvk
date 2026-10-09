@@ -68,7 +68,7 @@ namespace dxvk {
     // If we can't do proper blending, render the HUD into a separate image
     bool composite = needsComposition(dstView);
 
-    if (m_hud && composite)
+    if (m_hud && composite && m_hudEnabled)
       renderHudImage(ctx, dstView->mipLevelExtent(0));
     else
       destroyHudImage();
@@ -117,7 +117,7 @@ namespace dxvk {
       srcView, srcRect, composite);
 
     if (!composite) {
-      if (m_hud)
+      if (m_hud && m_hudEnabled)
         m_hud->render(ctx, dstView);
 
       if (m_cursorView)

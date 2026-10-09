@@ -71,6 +71,9 @@ namespace dxvk::hud {
     static Rc<Hud> createHud(
       const Rc<DxvkDevice>& device);
     
+    HudOptions* GetOptions() {
+      return &m_options;
+    }
   private:
     
     Rc<DxvkDevice>        m_device;

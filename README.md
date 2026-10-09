@@ -1,52 +1,66 @@
-# DXVK
+# GXVK
 
-A Vulkan-based translation layer for Direct3D 8/9/10/11 which allows running 3D applications on Linux using Wine.
+A Vulkan-based translation layer for 3Dfx Glide which allows running 3D applications on Linux using Wine.
+It is a completely new frontend for DXVK.
 
-For the current status of the project, please refer to the [project wiki](https://github.com/doitsujin/dxvk/wiki).
+## FAQ
 
-The most recent development builds can be found [here](https://github.com/doitsujin/dxvk/actions/workflows/artifacts.yml?query=branch%3Amaster).
+### What the status of the project?
 
-Release builds can be found [here](https://github.com/doitsujin/dxvk/releases).
+Project is on very early prototype stage of development. So don't expect it to run any games flawlessly. Even if it will run something it will be very slow and all kind of bugs will lay in ambush at every corner.
+
+### What Glide API variants will be supported?
+
+Plan is to eventually support all three 32-bit variants of API released by 3Dfx for Windows. Namely ones utilizing glide.dll, glide2x.dll and glide3x.dll. Native Linux variants aren't planned as despite Glide had been made available in later 3Dfx days for Linux there haven't been any games released utilizing Glide there. Various DOS-compatibility OVL and 64-bit variants are also not planned.
+
+### When it will be ready for prime time?
+
+Currently it is just off time one person project. And my free time is pretty much occupied with other things. Also unlike [D7VK](https://github.com/WinterSnowfall/d7vk) it doesn't rely on already matured D3D9 frontend which shoulder most of the grizzly work. That is because API is sufficiently different from Direct3D to warrant it's own separate frontend to translate directly and not through some API intermediary. But at the same time due to new frontend many things need to be re-designed to better fit Glide or fully re-implemented despite Glide itself as an API is arguably less complex than legacy Direct3D and much more thoroughly documented.
+
+TLDR. Don't expect a rapid progress like it was the case with [D7VK](https://github.com/WinterSnowfall/d7vk) in the past. Snail crawling pace is much more realistic.
+
+### Will it work on Windows?
+
+I'm not using Windows, so can't test it or develop it to be adapted to such situations. It's primarily intended use case is, and always will be, Wine/Linux. To that end, GXVK is pretty much aligned with upstream [DXVK](https://github.com/doitsujin/dxvk) and it's spin-off [D7VK](https://github.com/WinterSnowfall/d7vk). It could theoretically work but it is nor tested, nor supported.
+
+### Will it be upstreamed to DXVK at some point?
+
+No. DXVK's development team have made it clear they are not interested in merging and/or maintaining any kinds of new APIs which aren't already there.
+
+### Will DXVK's D3D9-D3D11 config options, such as frame rate limits, work with GXVK?
+
+No. As GXVK is completely new DXVK frontend and not relying on already existing one of the consequences of that is that very limited set of dxvk-prefixed options will work and none from Direct3D frontend.
+GXVK will have it's own set of options some of which will be similar to options other upstream frontends provide, including frame rate limiter.
 
 ## How to use
-In order to install a DXVK package obtained from the [release](https://github.com/doitsujin/dxvk/releases) page into a given wine prefix, copy or symlink the DLLs into the following directories as follows, then open `winecfg` and manually add `native` DLL overrides for `d3d8`, `d3d9`, `d3d10core`, `d3d11` and `dxgi` under the Libraries tab.
 
-In a default Wine prefix that would be as follows:
-```
-export WINEPREFIX=/path/to/wineprefix
-cp x64/*.dll $WINEPREFIX/drive_c/windows/system32
-cp x32/*.dll $WINEPREFIX/drive_c/windows/syswow64
-winecfg
-```
+Grab the latest release. Alternatively you can compile the project manually or grab latest build artifact from [Actions](https://github.com/CkNoSFeRaTU/gxvk/actions) if you want to be "on the bleeding edge".
 
-For a pure 32-bit Wine prefix (non default) the 32-bit DLLs instead go to the `system32` directory:
-```
-export WINEPREFIX=/path/to/wineprefix
-cp x32/*.dll $WINEPREFIX/drive_c/windows/system32
-winecfg
-```
+> [!WARNING]
+> Please keep in mind that ABSOLUTELY NO TESTING is done on Windows. GXVK is developed on and primarily aimed at use with Wine/Linux, so your mileage may vary in other situations.
 
-Verify that your application uses DXVK instead of wined3d by enabling the HUD (see notes below).
+Copy matching glide.dll, glide2x.dll or glide3x.dll which this particular game/application uses (or all of them) to it's directory next to the executable.
 
-In order to remove DXVK from a prefix, remove the DLLs and DLL overrides, and run `wineboot -u` to restore the original DLL files.
+Alternatively you can place all DLLs to Wine's prefix system path directly once and they'll be used for all games/applications in that prefix automatically.
+For this method for WOW64 Wine prefix (default in recent Wine) it should go to `syswow64` directory and for a pure 32-bit Wine prefix (non default) should instead go to the `system32` directory.
 
-Tools such as Steam Play, Lutris, Bottles, Heroic Launcher, etc will automatically handle setup of dxvk on their own when enabled.
+As Wine doesn't implement Glide at all itself you don't need any DLL overrides.
 
-#### DLL dependencies 
-Listed below are the DLL requirements for using DXVK with any single API.
+> [!TIP]
+> If you have other wrappers installed you can verify that your application uses GXVK by enabling the HUD (see notes below).
 
-- d3d8: `d3d8.dll` and `d3d9.dll`
-- d3d9: `d3d9.dll`
-- d3d10: `d3d10core.dll`, `d3d11.dll` and `dxgi.dll`
-- d3d11: `d3d11.dll` and `dxgi.dll`
+In order to remove GXVK just remove previously copied DLLs.
 
-### Notes on Vulkan drivers
-Before reporting an issue, please check the [Wiki](https://github.com/doitsujin/dxvk/wiki/Driver-support) page on the current driver status and make sure you run a recent enough driver version for your hardware.
+#### DLL dependencies
 
-### Online multi-player games
-Manipulation of Direct3D libraries in multi-player games may be considered cheating and can get your account **banned**. This may also apply to single-player games with an embedded or dedicated multiplayer portion. **Use at your own risk.**
+Listed below are the DLL requirements for using GXVK with any single API.
+
+- Glide v2.00 - v2.11: `glide.dll`
+- Glide v2.20 - v2.60: `glide2x.dll`
+- Glide v3.00 - v3.10: `glide3x.dll`
 
 ### HUD
+
 The `DXVK_HUD` environment variable controls a HUD which can display the framerate and some stat counters. It accepts a comma-separated list of the following options:
 - `devinfo`: Displays the name of the GPU and the driver version.
 - `fps`: Shows the current frame rate.
@@ -62,123 +76,29 @@ The `DXVK_HUD` environment variable controls a HUD which can display the framera
 - `api`: Shows the D3D feature level used by the application.
 - `cs`: Shows worker thread statistics.
 - `compiler`: Shows shader compiler activity
-- `samplers`: Shows the current number of sampler pairs used *[D3D9 Only]*
-- `swvp`: Shows the vertex processing mode and the current number of software vertex processing shaders *[D3D9 Only]*
 - `scale=x`: Scales the HUD by a factor of `x` (e.g. `1.5`)
 - `opacity=y`: Adjusts the HUD opacity by a factor of `y` (e.g. `0.5`, `1.0` being fully opaque).
 
 Additionally, `DXVK_HUD=1` has the same effect as `DXVK_HUD=devinfo,fps`, and `DXVK_HUD=full` enables all available HUD elements.
 
+By default GXVK scale HUD automatically and you can toggle it's visibility (if HUD was enabled) with SHIFT + F12 and change opacity with SHIFT + F10 / SHIFT + F11 in real time.
+
 ### Logs
-When used with Wine, DXVK will print log messages to `stderr`. Additionally, standalone log files can optionally be generated by setting the `DXVK_LOG_PATH` variable, where log files in the given directory will be called `app_d3d11.log`, `app_dxgi.log` etc., where `app` is the name of the game executable.
+
+When used with Wine, GXVK will print log messages to `stderr`. Additionally, standalone log files can optionally be generated by setting the `GXVK_LOG_PATH` variable, where log files in the given directory will be called `app_glide1x.log`, `app_glide2x.log` or `app_glide3x.log`, where `app` is the name of the game executable. The `GXVK_LOG_LEVEL` variable can be used to control logging verbosity.
+
+The naming of the environment variables has been altered in order to allow for finer control of logging specifically for GXVK, independently of upstream DXVK.
 
 On Windows, log files will be created in the game's working directory by default, which is usually next to the game executable.
-
-### Device filter
-Some applications do not provide a method to select a different GPU. In that case, DXVK can be forced to use a given device:
-- `DXVK_FILTER_DEVICE_NAME="Device Name"` Selects devices with a matching Vulkan device name, which can be retrieved with tools such as `vulkaninfo`. Matches on substrings, so "VEGA" or "AMD RADV VEGA10" is supported if the full device name is "AMD RADV VEGA10 (LLVM 9.0.0)", for example. If the substring matches more than one device, the first device matched will be used.
-- `DXVK_FILTER_DEVICE_UUID="00000000000000000000000000000001"` Selects a device by matching its Vulkan device UUID, which can also be retrieved using tools such as `vulkaninfo`. The UUID must be a 32-character hexadecimal string with no dashes. This method provides more precise selection, especially when using multiple identical GPUs.
-
-**Note:** If the device filter is configured incorrectly, it may filter out all devices and applications will be unable to create a D3D device.
-
-### Debugging
-The following environment variables can be used for **debugging** purposes.
-- `VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation` Enables Vulkan debug layers. Highly recommended for troubleshooting rendering issues and driver crashes. Requires the Vulkan SDK to be installed on the host system.
-- `DXVK_LOG_LEVEL=none|error|warn|info|debug` Controls message logging.
-- `DXVK_LOG_PATH=/some/directory` Changes path where log files are stored. Set to `none` to disable log file creation entirely, without disabling logging.
-- `DXVK_DEBUG=...` Enables one of various debugging modes:
-  - `capture`: Default when used with certain tools. Enables dxvk-internal debug names and debug markers for render passes, shaders, etc.
-  - `hang`: Detects GPU hangs or driver crashes resulting in `VK_ERROR_DEVICE_LOST` and logs failing command(s).
-  - `markers`: Uses `VK_EXT_debug_utils` to forward applocation-provided resource names and debug markers to Vulkan.
-  - `validation`: Enables validation debug callback. Must also set `VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation` on Linux.
-- `DXVK_CONFIG_FILE=/xxx/dxvk.conf` Sets path to the configuration file.
-- `DXVK_CONFIG="dxgi.hideAmdGpu = True; dxgi.syncInterval = 0"` Can be used to set config variables through the environment instead of a configuration file using the same syntax. `;` is used as a seperator.
-- `DXVK_SHADER_CACHE=0`: Disables the internal shader cache.
-- `DXVK_SHADER_CACHE_PATH=/some/directory`: Path to internal shader cache files. By default, this will use `%LOCALAPPDATA%/dxvk` in a Windows
-  or Wine environment, and `$HOME/.cache` or `$XDG_CACHE_HOME` in a native Linux environment.
-
-### Graphics Pipeline Library
-On drivers which support `VK_EXT_graphics_pipeline_library` Vulkan shaders will be compiled at the time the game loads its D3D shaders, rather than at draw time. This reduces or eliminates shader compile stutter in many games when compared to the previous system.
-
-In games that load their shaders during loading screens or in the menu, this can lead to prolonged periods of very high CPU utilization, especially on weaker CPUs. For affected games it is recommended to wait for shader compilation to finish before starting the game to avoid stutter and low performance. Shader compiler activity can be monitored with `DXVK_HUD=compiler`.
-
-**Note:** Games which only load their D3D shaders at draw time (e.g. most Unreal Engine games) will still exhibit some stutter, although it should still be less severe than without this feature.
 
 ## Build instructions
 
 In order to pull in all submodules that are needed for building, clone the repository using the following command:
 ```
-git clone --recursive https://github.com/doitsujin/dxvk.git
+git clone --recursive https://github.com/CkNoSFeRaTU/gxvk.git
 ```
 
-### Requirements:
-- [wine 10.0](https://www.winehq.org/) or newer
-- [Meson](https://mesonbuild.com/) build system (at least version 0.58)
-- [Mingw-w64](https://www.mingw-w64.org) compiler and headers (at least version 10.0)
-- [glslang](https://github.com/KhronosGroup/glslang) compiler
+## Acknowledgments
 
-### Building DLLs
-
-#### The simple way
-Inside the DXVK directory, run:
-```
-./package-release.sh master /your/target/directory --no-package
-```
-
-This will create a folder `dxvk-master` in `/your/target/directory`, which contains both 32-bit and 64-bit versions of DXVK, which can be set up in the same way as the release versions as noted above.
-
-In order to preserve the build directories for development, pass `--dev-build` to the script. This option implies `--no-package`. After making changes to the source code, you can then do the following to rebuild DXVK:
-```
-# change to build.32 for 32-bit
-cd /your/target/directory/build.64
-ninja install
-```
-
-#### Compiling manually
-```
-# 64-bit build. For 32-bit builds, replace
-# build-win64.txt with build-win32.txt
-meson setup --cross-file build-win64.txt --buildtype release --prefix /your/dxvk/directory build.w64
-cd build.w64
-ninja install
-```
-
-The D3D8, D3D9, D3D10, D3D11 and DXGI DLLs will be located in `/your/dxvk/directory/bin`.
-
-### Build troubleshooting
-DXVK requires threading support from your mingw-w64 build environment. If you
-are missing this, you may see "error: ‘std::cv_status’ has not been declared"
-or similar threading related errors.
-
-On Debian and Ubuntu, this can be resolved by using the posix alternate, which
-supports threading. For example, choose the posix alternate from these
-commands:
-```
-update-alternatives --config x86_64-w64-mingw32-gcc
-update-alternatives --config x86_64-w64-mingw32-g++
-update-alternatives --config i686-w64-mingw32-gcc
-update-alternatives --config i686-w64-mingw32-g++
-```
-For non debian based distros, make sure that your mingw-w64-gcc cross compiler 
-does have `--enable-threads=posix` enabled during configure. If your distro does
-ship its mingw-w64-gcc binary with `--enable-threads=win32` you might have to
-recompile locally or open a bug at your distro's bugtracker to ask for it. 
-
-# DXVK Native
-
-DXVK Native is a version of DXVK which allows it to be used natively without Wine.
-
-This is primarily useful for game and application ports to either avoid having to write another rendering backend, or to help with port bringup during development.
-
-[Release builds](https://github.com/doitsujin/dxvk/releases) are built using the Steam Runtime.
-
-### How does it work?
-
-DXVK Native replaces certain Windows-isms with a platform and framework-agnostic replacement, for example, `HWND`s can become `SDL_Window*`s, etc.
-All it takes to do that is to add another WSI backend.
-
-**Note:** DXVK Native requires a backend to be explicitly set via the `DXVK_WSI_DRIVER` environment variable. The current built-in options are `SDL3`, `SDL2`, and `GLFW`.
-
-DXVK Native comes with a slim set of Windows header definitions required for D3D9/11 and the MinGW headers for D3D9/11.
-In most cases, it will end up being plug and play with your renderer, but there may be certain teething issues such as:
-- `__uuidof(type)` is supported, but `__uuidof(variable)` is not supported. Use `__uuidof_var(variable)` instead.
+None of this would have ever been possible without DXVK and Wine, so remember to show your love to the awesome people involved in those projects.
+Special thanks to 3Dfx for pioneering hardware-accelerated 3D graphics to mainstream audience, eventually open-sourced Glide API and excellent accompanied documentation.
