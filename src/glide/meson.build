@@ -8,6 +8,7 @@ glide_shaders = files([
 ])
 
 glide_common = [
+  'glide_constant_buffer.cpp',
   'glide_device.cpp',
   'glide_multithread.cpp',
   'glide_options.cpp',
@@ -31,7 +32,13 @@ glide3x_src = [
   'glide3x_main.cpp',
 ]
 
+glide_cpp_args = []
+if get_option('buildtype').startswith('debug')
+  glide_cpp_args += '-DDEBUGBUILD'
+endif
+
 glide_common_lib = static_library(dxvk_name_prefix+'glidecommon', glide_common, glsl_generator.process(glide_shaders),
+  cpp_args            : glide_cpp_args,
   dependencies        : [ dxbc_spirv_dep, dxvk_dep ],
   include_directories : [ dxvk_include_path ],
   kwargs              : dxvk_so_version,
@@ -62,6 +69,7 @@ if get_option('enable_glide1x')
   endif
 
   glide1x_dll = shared_library(dxvk_name_prefix+'glide', glide1x_src, glide1x_res,
+    cpp_args            : glide_cpp_args,
     dependencies        : [ dxbc_spirv_dep, dxvk_dep, glide1x_extra_dep, glide_common_dep ],
     include_directories : [ dxvk_include_path ],
     install             : true,
@@ -104,6 +112,7 @@ if get_option('enable_glide2x')
   endif
 
   glide2x_dll = shared_library(dxvk_name_prefix+'glide2x', glide2x_src, glide2x_res,
+    cpp_args            : glide_cpp_args,
     dependencies        : [ dxbc_spirv_dep, dxvk_dep, glide2x_extra_dep, glide_common_dep ],
     include_directories : [ dxvk_include_path ],
     install             : true,
@@ -146,6 +155,7 @@ if get_option('enable_glide3x')
   endif
 
   glide3x_dll = shared_library(dxvk_name_prefix+'glide3x', glide3x_src, glide3x_res,
+    cpp_args            : glide_cpp_args,
     dependencies        : [ dxbc_spirv_dep, dxvk_dep, glide2x_extra_dep, glide_common_dep ],
     include_directories : [ dxvk_include_path ],
     install             : true,

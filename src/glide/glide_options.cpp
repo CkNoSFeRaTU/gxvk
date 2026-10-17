@@ -5,17 +5,7 @@
 namespace dxvk {
 
   GlideOptions::GlideOptions(const Config& config) {
-    this->presentInterval = config.getOption<int32_t>("glide.presentInterval", -1);
-    this->deviceReset = config.getOption<bool>("glide.deviceReset", true);
-    this->multithread = config.getOption<bool>("glide.multithread", false);
-    this->useMonitorResolution = config.getOption<bool>("glide.useMonitorResolution", false);
-
-    this->ignoreGammaCorrection = config.getOption<bool>("glide.ignoreGammaCorrection", false);
-
-    this->hackNoBlend = config.getOption<bool>("glide.hackNoBlend", false);
-    this->hackNoClears = config.getOption<bool>("glide.hackNoClears", false);
-    this->hackNoDepth = config.getOption<bool>("glide.hackNoDepth", false);
-    this->hackNoLFB = config.getOption<bool>("glide.hackNoLFB", false);
+    this->autoGenMipMaps = config.getOption<bool>("glide.autoGenMipMaps", false);
 
     std::string card = Config::toLower(config.getOption<std::string>("glide.card", "auto"));
     if (card == "auto") {
@@ -36,8 +26,19 @@ namespace dxvk {
       this->card = GlideCard::CARD_VOODOO5;
     }
 
+    this->deviceLocalConstantBuffers = config.getOption<Tristate>("glide.deviceLocalConstantBuffers", Tristate::Auto);
+    this->deviceReset = config.getOption<bool>("glide.deviceReset", true);
+    this->ignoreGammaCorrection = config.getOption<bool>("glide.ignoreGammaCorrection", false);
+    this->hackNoBlend = config.getOption<bool>("glide.hackNoBlend", false);
+    this->hackNoClears = config.getOption<bool>("glide.hackNoClears", false);
+    this->hackNoDepth = config.getOption<bool>("glide.hackNoDepth", false);
+    this->hackNoLFB = config.getOption<bool>("glide.hackNoLFB", false);
+    this->hackNoMipMaps = config.getOption<bool>("glide.hackNoMipMaps", false);
     this->maxFrameRate = config.getOption<int32_t>("dxvk.maxFrameRate",
                          config.getOption<int32_t>("glide.maxFrameRate", 0));
+    this->multithread = config.getOption<bool>("glide.multithread", false);
+    this->presentInterval = config.getOption<int32_t>("glide.presentInterval", -1);
+    this->useMonitorResolution = config.getOption<bool>("glide.useMonitorResolution", false);
   }
 
 }

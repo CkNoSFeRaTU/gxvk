@@ -174,8 +174,8 @@ namespace dxvk {
         return { VK_FORMAT_R16_UINT, m_colorSpace };
       case GR_BUFFER_BACKBUFFER:
       case GR_BUFFER_FRONTBUFFER:
-        return { VK_FORMAT_R8G8B8A8_UNORM, m_colorSpace };
       case GR_BUFFER_AUXBUFFER:
+        return { VK_FORMAT_R8G8B8A8_UNORM, m_colorSpace };
       case GR_BUFFER_DEPTHBUFFER:
         return { VK_FORMAT_D16_UNORM, m_colorSpace };
     }
@@ -190,8 +190,12 @@ namespace dxvk {
       ppBackBuffer = m_backBuffers[1];
       return FXTRUE;
     }
-    else if ((Type == GR_BUFFER_AUXBUFFER) && m_auxBuffers.size() > 0) {
-      ppBackBuffer = m_auxBuffers[0];
+    else if ((Type == GR_BUFFER_AUXBUFFER) && m_auxBuffers.size() > 1) {
+      ppBackBuffer = m_auxBuffers[1];
+      return FXTRUE;
+    }
+    else if ((Type == GR_BUFFER_DEPTHBUFFER) && m_miscBuffers.size() > 0) {
+      ppBackBuffer = m_miscBuffers[0];
       return FXTRUE;
     }
 
@@ -228,9 +232,11 @@ namespace dxvk {
 
     const uint32_t auxCount = m_desc.AuxBufferCount;
     const uint32_t bufferCount = m_desc.BufferCount;
+    const uint32_t miscCount = 1;
 
     m_backBuffers.reserve(bufferCount);
     m_auxBuffers.reserve(auxCount);
+    m_miscBuffers.reserve(miscCount);
 
     // Create new back buffer
     GLIDE_COMMON_TEXTURE_DESC desc;
@@ -243,7 +249,7 @@ namespace dxvk {
     for (uint32_t i = 0; i < bufferCount; i++) {
       Rc<GlideCommonTexture> texture;
       try {
-        desc.Id = i;
+        desc.Id = "backbuffer " + std::to_string(i);
         texture = new GlideCommonTexture(m_parent, &desc);
         // m_parent->IncrementLosableCounter();
       } catch (const DxvkError& e) {
@@ -262,17 +268,41 @@ namespace dxvk {
     for (size_t i = 0; i < m_backBuffers.size(); i++)
       bufImages.push_back(m_backBuffers[i]->GetImage());
 
-    // Create new aux buffer
+    // Create new depth buffer
     desc.Width              = std::max(m_desc.BackBufferWidth,  1u);
     desc.Height             = std::max(m_desc.BackBufferHeight, 1u);
     desc.MipMaps            = 1;
     desc.Format             = GetBufferFormat(GR_BUFFER_DEPTHBUFFER).format;
     desc.Type               = GR_BUFFER_DEPTHBUFFER;
 
+    if (miscCount > 0) {
+      Rc<GlideCommonTexture> texture;
+      try {
+        desc.Id = "depth";
+        texture = new GlideCommonTexture(m_parent, &desc);
+      } catch (const DxvkError& e) {
+        DestroyBackBuffers();
+        Logger::err(e.message());
+        exit(0);
+      }
+
+      m_miscBuffers.emplace_back(std::move(texture));
+    }
+    small_vector<Rc<DxvkImage>, miscCount> miscImages;
+    for (size_t i = 0; i < m_miscBuffers.size(); i++)
+      miscImages.push_back(m_miscBuffers[i]->GetImage());
+
+    // Create new aux buffer
+    desc.Width              = std::max(m_desc.BackBufferWidth,  1u);
+    desc.Height             = std::max(m_desc.BackBufferHeight, 1u);
+    desc.MipMaps            = 1;
+    desc.Format             = GetBufferFormat(GR_BUFFER_AUXBUFFER).format;
+    desc.Type               = GR_BUFFER_AUXBUFFER;
+
     for (uint32_t i = 0; i < auxCount; i++) {
       Rc<GlideCommonTexture> texture;
       try {
-        desc.Id = i;
+        desc.Id = "auxbuffer " + std::to_string(i);
         texture = new GlideCommonTexture(m_parent, &desc);
       } catch (const DxvkError& e) {
         DestroyBackBuffers();
@@ -292,7 +322,8 @@ namespace dxvk {
 
     m_parent->InjectCs([
       bufImages = std::move(bufImages),
-      auxImages = std::move(auxImages)
+      auxImages = std::move(auxImages),
+      miscImages = std::move(miscImages)
     ] (DxvkContext* ctx) {
       for (size_t i = 0; i < bufImages.size(); i++) {
         ctx->initImage(bufImages[i], VK_IMAGE_LAYOUT_UNDEFINED);
@@ -300,7 +331,10 @@ namespace dxvk {
       for (size_t i = 0; i < auxImages.size(); i++) {
         ctx->initImage(auxImages[i], VK_IMAGE_LAYOUT_UNDEFINED);
       }
-      Logger::info(str::format("Buffers initialized: ", bufImages.size(), " back, ", auxImages.size(), " aux"));
+      for (size_t i = 0; i < miscImages.size(); i++) {
+        ctx->initImage(miscImages[i], VK_IMAGE_LAYOUT_UNDEFINED);
+      }
+      Logger::info(str::format("Buffers initialized: ", bufImages.size(), " back, ", auxImages.size(), " aux, ", miscImages.size(), " misc"));
     });
   }
 
@@ -310,7 +344,7 @@ namespace dxvk {
     if (hud) {
       if (hud->GetOptions()->scale == 1.0f)
         hud->GetOptions()->scale = float(m_desc.ScreenHeight) / 768.0f;
-      hud->addItem<hud::HudClientApiItem>("api", 1, m_parent->GetAPI() + " (" + m_parent->GetBoardConfiguration()->name + ")");
+      hud->addItem<hud::HudClientApiItem>("api", 1, m_parent->GetAPIString() + " (" + m_parent->GetBoardConfiguration()->name + ")");
 
       if (m_latencyTracker)
         m_latencyHud = hud->addItem<hud::HudLatencyItem>("latency", 4);
@@ -323,9 +357,15 @@ namespace dxvk {
   void GlideSwapChain::DestroyBackBuffers() {
     m_auxBuffers.clear();
     m_backBuffers.clear();
+    m_miscBuffers.clear();
   }
 
   void GlideSwapChain::BufferSwap(bool doSwap, FxU32 interval) {
+    if (!doSwap && m_backBuffers.size() > 0)
+      m_backBuffers[0]->ConsiderUpload();
+    else if (m_backBuffers.size() > 1)
+      m_backBuffers[1]->ConsiderUpload();
+
     const int presentInterval = m_parent->GetOptions()->presentInterval;
     if (presentInterval >= 0)
       interval = presentInterval;
@@ -343,7 +383,6 @@ namespace dxvk {
     // Retrieve the image and image view to present
     VkResult status = VK_SUCCESS;
 
-    //Rc<DxvkImage> swapImage = m_backBuffers[0]->GetImage();
     Rc<DxvkImageView> swapImageView = m_backBuffers[0]->GetView(0);
 
     // Presentation semaphores and WSI swap chain image

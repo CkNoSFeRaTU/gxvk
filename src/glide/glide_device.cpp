@@ -12,7 +12,7 @@
 
 namespace dxvk {
 
-  static float glideFogIndexToW[FOG_TABLE_ENTRIES_COUNT];
+  static FxFloat glideFogIndexToW[FOG_TABLE_ENTRIES_COUNT];
   Singleton<DxvkInstance> g_dxvkInstance;
 
   GlideDevice::GlideDevice(GLIDEAPI api)
@@ -61,7 +61,7 @@ namespace dxvk {
 
       if (m_device->features().extDepthBiasControl.floatRepresentation) {
         m_depthBiasRepresentation.depthBiasRepresentation = VK_DEPTH_BIAS_REPRESENTATION_FLOAT_EXT;
-        m_depthBiasScale = 1.0f;
+        m_depthBiasScale = 0.0f;
       }
       else if (m_device->features().extDepthBiasControl.leastRepresentableValueForceUnormRepresentation)
         m_depthBiasRepresentation.depthBiasRepresentation = VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORCE_UNORM_EXT;
@@ -76,6 +76,8 @@ namespace dxvk {
       ctx->bindShader<VK_SHADER_STAGE_VERTEX_BIT>(std::move(cVS));
       ctx->setDepthBiasRepresentation(cRepresentation);
     });
+
+    CreateConstantBuffers();
 
     for (int idx = 0; idx < FOG_TABLE_ENTRIES_COUNT; idx++) {
       glideFogIndexToW[idx] = std::powf(2.0f, 3.0f + static_cast<float>(idx >> 2)) / (8.0f - static_cast<float>(idx & 3));
@@ -127,7 +129,7 @@ namespace dxvk {
       return FXFALSE;
     }
 
-    Logger::debug(str::format("Requested resolution: ", m_screen.width, "x", m_screen.height, "@", m_screen.refreshRate));
+    DEBUGLOG(str::format("Requested resolution: ", m_screen.width, "x", m_screen.height, "@", m_screen.refreshRate));
 
     SetColorFormat(colorFormat);
     SetOriginLocation(originLocation);
@@ -137,8 +139,6 @@ namespace dxvk {
     m_colorBuffers = nColBuffers;
     m_auxBuffers = nAuxBuffers;
     m_window = hWnd;
-
-    m_state.colorFormat = colorFormat;
 
     HMONITOR monitor = wsi::getWindowMonitor(hWnd);
     if (monitor == nullptr) {
@@ -152,7 +152,7 @@ namespace dxvk {
     desc.RefreshRate = m_screen.refreshRate;
     desc.BufferCount = m_colorBuffers;
     desc.AuxBufferCount = m_auxBuffers;
-    desc.ColorFormat = m_state.colorFormat;
+    desc.ColorFormat = GetColorFormat();
 
     wsi::WsiMode mode;
     if (m_glideOptions.useMonitorResolution && wsi::getCurrentDisplayMode(monitor, &mode)) {
@@ -184,11 +184,10 @@ namespace dxvk {
       GlideDeviceDirtyFlag::Depth,
       GlideDeviceDirtyFlag::FFShader,
       GlideDeviceDirtyFlag::Framebuffer,
-      GlideDeviceDirtyFlag::PushDataVs,
-      GlideDeviceDirtyFlag::PushDataFfvs,
       GlideDeviceDirtyFlag::PushDataFfps,
       GlideDeviceDirtyFlag::PushDataShared,
       GlideDeviceDirtyFlag::RasterizerState,
+      GlideDeviceDirtyFlag::SharedPixelShaderData,
       GlideDeviceDirtyFlag::SpecializationEntries,
       GlideDeviceDirtyFlag::VertexLayout,
       GlideDeviceDirtyFlag::Viewport
@@ -230,54 +229,25 @@ namespace dxvk {
       return FXFALSE;
     }
 
-    // according to 2.4 docs only GR_LFBWRITEMODE_565 for buffers and GR_LFBWRITEMODE_ZA16 for aux was supported for Voodoo Graphics/Rush.
-    // but Diablo II wants rendering intros with GR_LFBWRITEMODE_8888 regardless of presented board!?;
-/*
-    const GrSstType boardType = m_boardConfiguration.type;
-    if ((boardType == GR_SSTTYPE_Voodoo || boardType == GR_SSTTYPE_SST96) && writeMode != GR_LFBWRITEMODE_ANY) {
-      if ((buffer == GR_BUFFER_FRONTBUFFER || buffer == GR_BUFFER_BACKBUFFER) && writeMode != GR_LFBWRITEMODE_565)
-        return FXFALSE;
+    if (unlikely(m_swapchain == nullptr))
+      return FXFALSE;
 
-      if (buffer == GR_BUFFER_AUXBUFFER && writeMode != GR_LFBWRITEMODE_ZA16)
-        return FXFALSE;
-    }
-*/
+    Rc<GlideCommonTexture> texture = nullptr;
+    if (!m_swapchain->GetBuffer(buffer, texture))
+      return FXFALSE;
 
-    if (origin == GR_ORIGIN_ANY)
-      info->origin = m_state.originLocation;
-    if (writeMode == GR_LFBWRITEMODE_ANY)
-      info->writeMode = GR_LFBWRITEMODE_8888;
-    else
-      info->writeMode = writeMode;
+    info->lfbPtr = texture->Lock(type, origin, writeMode);
+    if (unlikely(info->lfbPtr == nullptr))
+      return FXFALSE;
 
-    if (type != GR_LFB_WRITE_ONLY) {
-      // TODO: readback
-    }
-
-    // TODO: non-UMA cards support framebuffers with only 1024 pixel width, 2048 bytes stride regardless of buffers resolution.
-    // There are 2.11 games which rely on that.
-    FxU32 blockSize = 0;
-    UtilTextureFormatSize(UtilLFBWriteModeToIFormat(info->writeMode), &blockSize, nullptr, nullptr);
-
-    auto& lfb = m_lfb[buffer];
-    lfb.format = writeMode;
-    lfb.width = m_state.viewport.extent.width;
-    lfb.height = m_state.viewport.extent.height;
-    lfb.pixelSize = blockSize >> 3;
-    lfb.buffer.resize(lfb.width * lfb.height * lfb.pixelSize);
-
-    info->strideInBytes = lfb.width * lfb.pixelSize;
-    info->lfbPtr = lfb.buffer.data();
+    info->writeMode = writeMode;
+    info->strideInBytes = texture->GetStride();
 
     return FXTRUE;
   }
 
   FxBool GlideDevice::LinearBufferUnlock(GrLock_t type, GrBuffer_t buffer) {
     GlideDeviceLock lock = LockDevice();
-
-    if (unlikely(m_glideOptions.hackNoLFB)) {
-      return FXTRUE;
-    }
 
     // according to 2.4 docs only GR_BUFFER_FRONTBUFFER, GR_BUFFER_BACKBUFFER, and GR_BUFFER_AUXBUFFER are supported.
     if (unlikely(buffer < GR_BUFFER_FRONTBUFFER || buffer > GR_BUFFER_AUXBUFFER)) {
@@ -287,126 +257,115 @@ namespace dxvk {
       return FXFALSE;
     }
 
-    if (m_swapchain == nullptr)
+    if (unlikely(m_swapchain == nullptr))
       return FXFALSE;
 
     Rc<GlideCommonTexture> texture = nullptr;
     if (!m_swapchain->GetBuffer(buffer, texture))
       return FXFALSE;
 
-    auto image = texture->GetImage();
-    if (unlikely(image == nullptr))
-      return FXFALSE;
+    if (texture->Unlock(type)) {
+      if (buffer == GR_BUFFER_FRONTBUFFER)
+        m_swapchain->BufferSwap(false);
 
-    VkOffset3D DestOffset{};
-    auto subresources = image->getAvailableSubresources();
-    VkExtent3D dstTexLevelExtent = image->mipLevelExtent(subresources.baseMipLevel);
-    auto formatInfo = image->formatInfo();
-    VkOffset3D alignedDestOffset = {
-      int32_t(alignDown(DestOffset.x, formatInfo->blockSize.width)),
-      int32_t(alignDown(DestOffset.y, formatInfo->blockSize.height)),
-      int32_t(alignDown(DestOffset.z, formatInfo->blockSize.depth))
-    };
-    VkExtent3D extentBlockCount = util::computeBlockCount(dstTexLevelExtent, formatInfo->blockSize);
-    VkExtent3D alignedExtent = util::snapExtent3D(alignedDestOffset, extentBlockCount, dstTexLevelExtent);
-    VkImageSubresourceLayers dstLayers = { subresources.aspectMask, subresources.baseMipLevel, subresources.baseArrayLayer, subresources.layerCount };
-
-    auto& lfb = m_lfb[buffer];
-
-    FxU32 components = 4, dstPitch = 0;
-    size_t bufferSize = lfb.width * lfb.height * components;
-
-    std::vector<uint8_t> pixelData;
-    pixelData.resize(bufferSize);
-
-    UtilConvertImageToRGBA(UtilLFBWriteModeToIFormat(lfb.format), lfb.buffer.data(), pixelData, components, dstPitch, lfb.width, lfb.height, nullptr);
-    VkDeviceSize pitch = align(dstPitch, components);
-
-    auto slice = m_stagingBuffer.alloc(bufferSize);
-    util::packImageData(
-      slice.mapPtr(0), pixelData.data(), extentBlockCount, components,
-      pitch, pitch * lfb.height);
-
-    EmitCs([
-      cSrcSlice       = slice,
-      cDstImage       = image,
-      cDstLayers      = dstLayers,
-      cDstLevelExtent = alignedExtent,
-      cOffset         = alignedDestOffset,
-      cColorFormat    = m_swapchain->GetBufferFormat(buffer).format
-    ] (DxvkContext* ctx) mutable {
-      ctx->copyBufferToImage(
-        cDstImage,  cDstLayers,
-        cOffset, cDstLevelExtent,
-        cSrcSlice.buffer(), cSrcSlice.offset(),
-        0, 0, cColorFormat);
-    });
-
-    if (buffer == GR_BUFFER_FRONTBUFFER)
-      m_swapchain->BufferSwap(false);
-
-    ConsiderFlush(GpuFlushType::ImplicitWeakHint);
+      ConsiderFlush(GpuFlushType::ImplicitWeakHint);
+    }
 
     return FXTRUE;
   }
 
   void GlideDevice::BufferClear(GrColor_t color, GrAlpha_t alpha, FxU32 depth) {
     GlideDeviceLock lock = LockDevice();
+
     if (unlikely(m_glideOptions.hackNoClears)) {
       return;
     }
 
-    if (m_state.colorMask.color) {
+    if (likely(m_state.colorMask.color)) {
       Rc<GlideCommonTexture> textureRT = nullptr;
-      if (m_swapchain->GetBuffer(m_state.renderBuffer, textureRT)) {
-        VkClearColorValue clearValue;
-        clearValue.float32[0] = float((color >> 0) & 0xFF) / 255.0;
-        clearValue.float32[1] = float((color >> 8) & 0xFF) / 255.0;
-        clearValue.float32[2] = float((color >> 16) & 0xFF) / 255.0;
-        clearValue.float32[3] = float(alpha) / 255.0;
-        VkClearValue clearBlock = { };
-        clearBlock.color = util::encodeClearBlockValue(textureRT->GetImage()->info().format, clearValue);
+      if (likely(m_swapchain->GetBuffer(m_state.renderBuffer, textureRT))) {
+        const FxBool partial = memcmp(&m_state.viewport, &m_state.scissor, sizeof(VkRect2D)) != 0;
+        if (textureRT->IsDirty(GlideTextureDirty::TEXTURE_DIRTY_GPU) || textureRT->IsDirty(GlideTextureDirty::TEXTURE_UPTODATE)) {
+          VkClearColorValue clearValue;
+          FxFloat r, g, b, a;
+          UtilGetColorComponent(GetColorFormat(), color, &r, &g, &b, &a, true);
 
-        Rc<DxvkImageView> view = textureRT->GetView(0);
-        VkImageSubresourceRange subresources = textureRT->GetImage()->getAvailableSubresources();
+          clearValue.float32[0] = r;
+          clearValue.float32[1] = g;
+          clearValue.float32[2] = b;
+          clearValue.float32[3] = a;
+          VkClearValue clearBlock = { };
+          Rc<DxvkImage> image = textureRT->GetImage();
+          Rc<DxvkImageView> view = textureRT->GetView(0);
+          if (likely(image != nullptr && view != nullptr)) {
+            clearBlock.color = util::encodeClearBlockValue(image->info().format, clearValue);
 
-        EmitCs([
-          cView = view,
-          cSubResource = subresources,
-          cClearValue = clearBlock
-        ](DxvkContext* ctx) {
-          DxvkAttachment attachment = {};
-          attachment.view = cView;
-          VkImageAspectFlags cAspectMask = cSubResource.aspectMask;
-          ctx->clearRenderTarget(attachment, cAspectMask, cClearValue, 0u);
-        });
+            VkImageSubresourceRange subresources = image->getAvailableSubresources();
+            const bool inverted = m_state.originLocation == GrOriginLocation_t::GR_ORIGIN_LOWER_LEFT;
+            const VkRect2D& viewport = m_state.viewport;
+            const VkRect2D& scissor = m_state.scissor;
+            VkOffset3D offset = VkOffset3D{scissor.offset.x, inverted ? static_cast<int32_t>(viewport.extent.height - scissor.extent.height) : scissor.offset.y, 0};
+            VkExtent3D extent = VkExtent3D{scissor.extent.width - scissor.offset.x, scissor.extent.height - scissor.offset.y, 0};
+
+            EmitCs([
+              cPartial = partial,
+              cOffset = offset,
+              cExtent = extent,
+              cView = view,
+              cSubResource = subresources,
+              cClearValue = clearBlock
+            ](DxvkContext* ctx) {
+              VkImageAspectFlags cAspectMask = cSubResource.aspectMask;
+
+              if (cPartial) {
+                DxvkAttachment attachment = {};
+                attachment.view = cView;
+
+                ctx->clearRenderTarget(attachment, cAspectMask, cClearValue, 0u);
+              } else {
+                ctx->clearImageView(cView, cOffset, cExtent, cAspectMask, cClearValue);
+              }
+            });
+
+            DEBUGLOG(str::format("buffer ", m_state.renderBuffer, " cleared on GPU with region: ", m_state.scissor.offset.x, ", ", m_state.scissor.offset.y, ", ", m_state.scissor.extent.width, ", ", m_state.scissor.extent.height));
+          }
+        }
+
+        if (textureRT->IsDirty(GlideTextureDirty::TEXTURE_DIRTY_CPU) || textureRT->IsDirty(GlideTextureDirty::TEXTURE_UPTODATE)) {
+            DEBUGLOG(str::format("buffer ", m_state.renderBuffer, " cleared on CPU with region: ", m_state.scissor.offset.x, ", ", m_state.scissor.offset.y, ", ", m_state.scissor.extent.width, ", ", m_state.scissor.extent.height));
+          textureRT->Clear(color, m_state.scissor, partial);
+        }
       }
-
-      Logger::debug(str::format("buffer ", m_state.renderBuffer, " cleared"));
     }
 
     if (likely(!m_glideOptions.hackNoDepth)) {
-      if (m_state.depthMode != GR_DEPTHBUFFER_DISABLE) {
+      if (m_state.depthMode != GR_DEPTHBUFFER_DISABLE && m_state.depthMask) {
         Rc<GlideCommonTexture> textureDepth = nullptr;
-        if (m_swapchain->GetBuffer(GR_BUFFER_AUXBUFFER, textureDepth)) {
+        if (likely(m_swapchain->GetBuffer(GR_BUFFER_DEPTHBUFFER, textureDepth))) {
           VkClearValue clearBlock = { };
           clearBlock.depthStencil.depth = float(depth) / (m_state.depthRange.n - m_state.depthRange.f);
           clearBlock.depthStencil.stencil = 0;
 
+          Rc<DxvkImage> image = textureDepth->GetImage();
           Rc<DxvkImageView> view = textureDepth->GetView(0);
-          VkImageSubresourceRange subresources = textureDepth->GetImage()->getAvailableSubresources();
+          if (likely(image != nullptr && view != nullptr)) {
+            VkImageSubresourceRange subresources = textureDepth->GetImage()->getAvailableSubresources();
 
-          EmitCs([
-            cView = view,
-            cSubResource = subresources,
-            cClearValue = clearBlock
-          ](DxvkContext* ctx) {
-            DxvkAttachment attachment = {};
-            attachment.view = cView;
-            VkImageAspectFlags cAspectMask = cSubResource.aspectMask;
-            ctx->clearRenderTarget(attachment, cAspectMask, cClearValue, 0u);
-          });
-          Logger::debug(str::format("depth ", m_state.renderBuffer, " cleared"));
+            EmitCs([
+              cView = view,
+              cSubResource = subresources,
+              cClearValue = clearBlock
+            ](DxvkContext* ctx) {
+              DxvkAttachment attachment = {};
+              attachment.view = cView;
+              VkImageAspectFlags cAspectMask = cSubResource.aspectMask;
+              ctx->clearRenderTarget(attachment, cAspectMask, cClearValue, 0u);
+            });
+            DEBUGLOG(str::format("depth ", m_state.renderBuffer, " cleared"));
+          }
+
+          // TODO: dirty depth on CPU
+          textureDepth->SetDirty(GlideTextureDirty::TEXTURE_DIRTY_GPU);
         }
       }
     }
@@ -491,7 +450,7 @@ namespace dxvk {
 
     if (likely(!m_glideOptions.hackNoDepth)) {
       Rc<GlideCommonTexture> textureDepth = nullptr;
-      if (m_swapchain->GetBuffer(GR_BUFFER_AUXBUFFER, textureDepth)) {
+      if (m_swapchain->GetBuffer(GR_BUFFER_DEPTHBUFFER, textureDepth)) {
         feedbackLoopAspects |= VK_IMAGE_ASPECT_DEPTH_BIT;
         attachments.depth.view = textureDepth->GetView(0);
       }
@@ -509,8 +468,6 @@ namespace dxvk {
 
   void GlideDevice::BindRasterizerState() {
     m_dirty.clr(GlideDeviceDirtyFlag::RasterizerState);
-
-    GlideDeviceLock lock = LockDevice();
 
     DxvkRasterizerState rsState;
     if (unlikely(m_state.originLocation == GrOriginLocation_t::GR_ORIGIN_LOWER_LEFT)) {
@@ -554,11 +511,7 @@ namespace dxvk {
     ] (DxvkContext* ctx) {
       DxvkSamplerKey key = { };
 
-      if (cMipMaps > 1)
-        key.setLodRange(0.0, cMipMaps, cTMUState.texLodBiasValue);
-      else
-        key.setLodRange(0.0f, 1.0f, cTMUState.texLodBiasValue);
-      key.setLodRange(0.0f, 1.0f, cTMUState.texLodBiasValue);
+      key.setLodRange(-32.0f, 31.0f, cTMUState.texLodBiasValue);
       key.setUsePixelCoordinates(false);
       key.setFilter(cTMUState.texFilterMode.min == GR_TEXTUREFILTER_POINT_SAMPLED ? VK_FILTER_NEAREST : VK_FILTER_LINEAR,
                     cTMUState.texFilterMode.mag == GR_TEXTUREFILTER_POINT_SAMPLED ? VK_FILTER_NEAREST : VK_FILTER_LINEAR,
@@ -585,6 +538,9 @@ namespace dxvk {
 
   void GlideDevice::BindSpecConstants() {
     m_dirty.clr(GlideDeviceDirtyFlag::SpecializationEntries);
+
+    m_specData.chromaMode = m_state.chromaMode;
+    m_specData.fogMode = m_state.fog.mode;
 
     EmitCs([
       cSpecData = m_specData
@@ -638,7 +594,12 @@ namespace dxvk {
       std::clamp(minZ, 0.0f, 1.0f),
       std::clamp(std::max(maxZ, minZ + zBias), 0.0f, 1.0f),
     };
-    state.scissor = m_state.scissor;
+
+    const VkRect2D& scissor = m_state.scissor;
+    state.scissor = VkRect2D{
+        VkOffset2D{scissor.offset.x, inverted ? static_cast<int32_t>(viewport.extent.height - scissor.extent.height) : scissor.offset.y},
+        VkExtent2D{scissor.extent.width - scissor.offset.x, scissor.extent.height - scissor.offset.y}
+    };
 
     EmitCs([
       cViewport = std::move(state)
@@ -679,14 +640,18 @@ namespace dxvk {
   }
 
   void GlideDevice::PrepareDraw(glide3x::GrDrawVertexArrayMode_t primitiveTopology) {
-//    EmitFeedbackLoopBarriers();
+    Rc<GlideCommonTexture> textureRT = nullptr;
+    if (likely(m_swapchain->GetBuffer(m_state.renderBuffer, textureRT))) {
+      textureRT->ConsiderUpload();
+      textureRT->SetDirty(GlideTextureDirty::TEXTURE_DIRTY_GPU);
+    }
 
     for (int tmu = 0; tmu < std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES); tmu++) {
       const auto& TMU = m_tmu[tmu];
       if (TMU->UploadTextures(m_state.textures[tmu])) {
         const GlideTMU::TMUTexture* texture = TMU->GetTexture(m_state.textures[tmu]);
         if (unlikely(texture == nullptr || texture->texture == nullptr)) {
-          Logger::debug(str::format("Texture on TMU ", tmu, " not found!"));
+          DEBUGLOG(str::format("Texture on TMU ", tmu, " not found!"));
           continue;
         }
 
@@ -705,7 +670,7 @@ namespace dxvk {
           m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
         }
       } else {
-        Logger::debug(str::format("Texture on TMU ", tmu, " not uploaded!"));
+        DEBUGLOG(str::format("Texture on TMU ", tmu, " not uploaded!"));
       }
 
       ConsiderFlush(GpuFlushType::ImplicitWeakHint);
@@ -731,6 +696,35 @@ namespace dxvk {
     if (unlikely(m_dirty.test(GlideDeviceDirtyFlag::SpecializationEntries)))
       BindSpecConstants();
 
+    if (unlikely(m_dirty.test(GlideDeviceDirtyFlag::SharedPixelShaderData))) {
+      m_dirty.clr(GlideDeviceDirtyFlag::SharedPixelShaderData);
+
+      auto data = GetConstantBuffer(CbvIndex::PSShared).AllocTyped<GlideSharedPS>(1u);
+
+      memcpy(data->fogTable, m_state.fog.table, sizeof(m_state.fog.table));
+      memcpy(data->fogIndexToW, glideFogIndexToW, sizeof(glideFogIndexToW));
+
+      for (int idx = 0; idx < std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES); idx++) {
+        const Rc<GlideTMU>& tmu = m_tmu[idx];
+
+        uint32_t& combinerTMU = data->Stages[idx].combinerTMU;
+        FxI32 fnc = tmu->m_state.texCombine.alphaFunction;
+        // There is 0x0A - 0x0F hole, so rebind last 0x10 to 0x0A
+        if (tmu->m_state.texCombine.alphaFunction == GR_COMBINE_FUNCTION_SCALE_MINUS_LOCAL_ADD_LOCAL_ALPHA)
+          fnc = 0x0A;
+        combinerTMU = (fnc & 0x0F);
+        // Similarly rebind last 0x10 to 0x0A
+        fnc = tmu->m_state.texCombine.colorFunction;
+        if (tmu->m_state.texCombine.colorFunction == GR_COMBINE_FUNCTION_SCALE_MINUS_LOCAL_ADD_LOCAL_ALPHA)
+          fnc = 0x0A;
+        combinerTMU |= (fnc & 0x0F) << 4;
+        combinerTMU |= (tmu->m_state.texCombine.alphaFactor & 0x0F) << 8;
+        combinerTMU |= (tmu->m_state.texCombine.colorFactor & 0x0F) << 12;
+        combinerTMU |= (tmu->m_state.texCombine.alphaInvert & 0x01) << 16;
+        combinerTMU |= (tmu->m_state.texCombine.colorInvert & 0x01) << 17;
+      }
+    }
+
     if (unlikely(m_dirty.test(GlideDeviceDirtyFlag::Depth)))
       UpdateDepth();
 
@@ -744,10 +738,10 @@ namespace dxvk {
       return;
     }
 
-    float depthBias            = bit::cast<float>(m_state.depthBiasLevel);
+    float depthBias = bit::cast<float>(m_state.depthBiasLevel);
 
     DxvkDepthBias biases;
-    biases.depthBiasConstant = depthBias;
+    biases.depthBiasConstant = depthBias / 65535.0f;
     biases.depthBiasClamp    = 0.0f;
 
     DxvkDepthBounds bounds;
@@ -755,8 +749,8 @@ namespace dxvk {
     bounds.maxDepthBounds = float(m_state.depthRange.n) / (m_state.depthRange.n - m_state.depthRange.f);
 
     DxvkDepthStencilState state = { };
-    state.setDepthTest(m_auxBuffers > 0 && m_state.depthMode != GR_DEPTHBUFFER_DISABLE);
-    state.setDepthWrite(m_auxBuffers > 0 && m_state.depthMode != GR_DEPTHBUFFER_DISABLE && m_state.depthMask);
+    state.setDepthTest(m_state.depthMode != GR_DEPTHBUFFER_DISABLE);
+    state.setDepthWrite(m_state.depthMode != GR_DEPTHBUFFER_DISABLE && m_state.depthMask);
     state.setStencilTest(false);
     state.setDepthCompareOp(UtilCompareModeToVKCompareMode(m_state.depthFunction));
     state.normalize();
@@ -836,43 +830,19 @@ namespace dxvk {
           m_pushData.shared.flags |= FXBIT(10);
       }
 
-      if (m_glideOptions.ignoreGammaCorrection)
-        m_pushData.shared.flags |= FXBIT(11);
+      m_pushData.shared.flags |= (m_state.colorFormat & 0x03) << 11;
 
-      m_pushData.shared.flags |= m_state.colorFormat << 30;
+      if (m_glideOptions.ignoreGammaCorrection)
+        m_pushData.shared.flags |= FXBIT(13);
+
       m_pushData.shared.viewport = m_state.viewport;
       m_pushData.shared.coordinateSpace = m_state.coordinateSpace;
 
       UpdatePushDataBlock(m_pushData.shared);
     }
-    if (m_dirty.test(GlideDeviceDirtyFlag::PushDataVs))
-      UpdatePushDataBlock(m_pushData.vs);
-    if (m_dirty.test(GlideDeviceDirtyFlag::PushDataFfvs))
-      UpdatePushDataBlock(m_pushData.ffvs);
+
     if (m_dirty.test(GlideDeviceDirtyFlag::PushDataFfps)) {
-      for (int idx = 0; idx < std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES); idx++) {
-        const Rc<GlideTMU>& tmu = m_tmu[idx];
-
-        uint32_t& combinerTMU = m_pushData.ffps.combinerTMU[idx];
-        FxI32 fnc = tmu->m_state.texCombine.alphaFunction;
-        // There is 0x0A - 0x0F hole, so rebind last 0x10 to 0x0A
-        if (tmu->m_state.texCombine.alphaFunction == GR_COMBINE_FUNCTION_SCALE_MINUS_LOCAL_ADD_LOCAL_ALPHA)
-          fnc = 0x0A;
-        combinerTMU = (fnc & 0x0F);
-        // Similarly rebind last 0x10 to 0x0A
-        fnc = tmu->m_state.texCombine.colorFunction;
-        if (tmu->m_state.texCombine.colorFunction == GR_COMBINE_FUNCTION_SCALE_MINUS_LOCAL_ADD_LOCAL_ALPHA)
-          fnc = 0x0A;
-        combinerTMU |= (fnc & 0x0F) << 4;
-        combinerTMU |= (tmu->m_state.texCombine.alphaFactor & 0x0F) << 8;
-        combinerTMU |= (tmu->m_state.texCombine.colorFactor & 0x0F) << 12;
-        combinerTMU |= (tmu->m_state.texCombine.alphaInvert & 0x01) << 16;
-        combinerTMU |= (tmu->m_state.texCombine.colorInvert & 0x01) << 17;
-        combinerTMU |= (tmu->m_state.texClampMode.s & 0x02) << 18;
-        combinerTMU |= (tmu->m_state.texClampMode.t & 0x02) << 20;
-      }
-
-      Logger::debug(str::format("pixelFxCombiner pushData: "
+      DEBUGLOG(str::format("pixelFxCombiner pushData: "
                                  , "alphaCombine.function - ", m_state.alphaCombine.function, ", "
                                  , "colorCombine.function - ", m_state.colorCombine.function, ", "
                                  , "alphaCombine.factor - ", m_state.alphaCombine.factor, ", "
@@ -893,20 +863,23 @@ namespace dxvk {
                                | ((m_state.alphaCombine.other & 0x03) << 20)
                                | ((m_state.colorCombine.other & 0x03) << 22)
                                | ((m_state.alphaCombine.invert & 0x01) << 24)
-                               | ((m_state.colorCombine.invert & 0x01) << 25);
-      m_pushData.ffps.alphaTestFunction = m_state.alphaTestFunction;
-      m_pushData.ffps.alphaTestReference = m_state.alphaTestReference;
+                               | ((m_state.colorCombine.invert & 0x01) << 25)
+                               | ((m_state.depthMode & 0x07) << 26)
+                               | ((m_state.stippleMode & 0x03) << 29); // 1bit left
+      m_pushData.ffps.alphaTest = (m_state.alphaTestFunction & 0x07)
+                               | (m_state.alphaTestReference & 0xFF) << 7
+                               | (m_state.ditherMode & 0x03) << 15;
       m_pushData.ffps.chromaKeyLow = m_state.chromaKeyLow;
       m_pushData.ffps.chromaKeyHigh = m_state.chromaKeyHigh;
       m_pushData.ffps.constantColor = m_state.constantColor;
-      m_pushData.ffps.depthMode = m_state.depthMode;
+      m_pushData.ffps.delta0Color = m_state.delta0Color;
       m_pushData.ffps.depth[0] = m_state.depthRange.n;
       m_pushData.ffps.depth[1] = m_state.depthRange.f;
-      m_pushData.ffps.ditherMode = m_state.ditherMode;
+      m_pushData.ffps.fogColor = m_state.fog.color;
       m_pushData.ffps.gammaCorrection[0] = m_state.gammaCorrection[0];
       m_pushData.ffps.gammaCorrection[1] = m_state.gammaCorrection[1];
       m_pushData.ffps.gammaCorrection[2] = m_state.gammaCorrection[2];
-      m_pushData.ffps.stipple = ((m_state.stippleMode & 0xFF) << 8) | (m_state.stipplePattern & 0xFF);
+      m_pushData.ffps.stipplePattern = m_state.stipplePattern;
 
       m_pushData.ffps.flags = 0;
       if (m_state.alphaLighting)
@@ -915,19 +888,17 @@ namespace dxvk {
         m_pushData.ffps.flags = FXBIT(1);
       if (m_state.colorMask.alpha)
         m_pushData.ffps.flags = FXBIT(2);
+      if (m_state.delta0)
+        m_pushData.ffps.flags = FXBIT(3);
 
       UpdatePushDataBlock(m_pushData.ffps);
     }
 
     m_dirty.clr(GlideDeviceDirtyFlag::PushDataShared,
-                GlideDeviceDirtyFlag::PushDataVs,
-                GlideDeviceDirtyFlag::PushDataFfvs,
                 GlideDeviceDirtyFlag::PushDataFfps);
   }
 
   void GlideDevice::Reset() {
-    GlideDeviceLock lock = LockDevice();
-
     m_state.alphaTestFunction = GR_CMP_ALWAYS;
     m_state.alphaLighting = FXFALSE;
     m_state.alphaTestReference = 0.0f;
@@ -949,11 +920,13 @@ namespace dxvk {
     m_state.colorMask.color = FXTRUE;
     m_state.chromaKeyLow = 0;
     m_state.chromaKeyHigh = 0;
-    m_specData.chromaMode = GR_CHROMAKEY_DISABLE;
+    m_state.chromaMode = GR_CHROMAKEY_DISABLE;
     m_state.colorFormat = GR_COLORFORMAT_ARGB;
     m_state.constantColor = 0xFFFFFFFF;
     m_state.coordinateSpace = glide3x::GR_WINDOW_COORDS;
     m_state.cullMode = GR_CULL_DISABLE;
+    m_state.delta0 = FXFALSE;
+    m_state.delta0Color = 0xFFFFFFFF;
     m_state.depthBiasLevel = 0;
     m_state.depthFunction = GR_CMP_LESS;
     m_state.depthMask = FXTRUE;
@@ -961,6 +934,7 @@ namespace dxvk {
     m_state.depthRange.n = SST1_ZDEPTHVALUE_NEAREST;
     m_state.depthRange.f = SST1_ZDEPTHVALUE_FARTHEST;
     m_state.ditherMode = GR_DITHER_DISABLE;
+    m_state.fog.mode = glide3x::GR_FOG_DISABLE;
     m_state.gammaCorrection[0] = 0.0f;
     m_state.gammaCorrection[1] = 0.0f;
     m_state.gammaCorrection[2] = 0.0f;
@@ -1002,10 +976,9 @@ namespace dxvk {
       GlideDeviceDirtyFlag::Framebuffer,
       GlideDeviceDirtyFlag::FFShader,
       GlideDeviceDirtyFlag::PushDataShared,
-      GlideDeviceDirtyFlag::PushDataVs,
-      GlideDeviceDirtyFlag::PushDataFfvs,
       GlideDeviceDirtyFlag::PushDataFfps,
       GlideDeviceDirtyFlag::RasterizerState,
+      GlideDeviceDirtyFlag::SharedPixelShaderData,
       GlideDeviceDirtyFlag::SpecializationEntries,
       GlideDeviceDirtyFlag::VertexLayout,
       GlideDeviceDirtyFlag::Viewport
@@ -1022,6 +995,11 @@ namespace dxvk {
       if (cTracker && cTracker->needsAutoMarkers())
         ctx->beginLatencyTracking(cTracker, cFrameId);
     });
+  }
+
+  void GlideDevice::CreateConstantBuffers() {
+    for (uint32_t i = 0u; i < m_constantBuffers.size(); i++)
+      m_constantBuffers[i] = GlideConstantBuffer(this, CbvIndex(i));
   }
 
   void GlideDevice::EndFrame(Rc<DxvkLatencyTracker> LatencyTracker) {
@@ -1048,8 +1026,8 @@ namespace dxvk {
 
     // Constant buffers may hold a pointer into the current chunk,
     // reset that here so the data won't get overwritten.
-    // for (auto& cbv : m_constantBuffers)
-    //   cbv.ResetStreamCommand();
+    for (auto& cbv : m_constantBuffers)
+      cbv.ResetStreamCommand();
 
     m_csSeqNum = m_csThread.dispatchChunk(std::move(chunk));
   }
@@ -1342,65 +1320,58 @@ namespace dxvk {
     return m_state.colorFormat;
   }
 
-  FxI32 GlideDevice::QueryResolutions(const glide3x::GrResolution *resTemplate, glide3x::GrResolution *output) {
-    GlideDeviceLock lock = LockDevice();
+  GrBuffer_t GlideDevice::GetRenderBuffer() const {
+    return m_state.renderBuffer;
+  }
 
-    Logger::debug("Reporting display modes request");
-    if (unlikely(resTemplate == nullptr))
+  Rc<GlideTMU> GlideDevice::GetTMU(GrChipID_t tmu) const {
+    if (tmu > m_boardConfiguration.tmuCount)
+      return nullptr;
+
+    return m_tmu[tmu];
+  }
+
+  FxU32 GlideDevice::GetTMUCount() const {
+    return m_boardConfiguration.tmuCount;
+  }
+
+  FxU32 GlideDevice::GetTMUMemory() const {
+    return m_boardConfiguration.tmuCount * m_boardConfiguration.tmuRam;
+  }
+
+  FxU32 GlideDevice::GetTMUMinAddress(GrChipID_t tmu) const {
+    if (tmu >= m_boardConfiguration.tmuCount)
       return 0;
 
-    HMONITOR monitor = wsi::getWindowMonitor(m_window);
-    if (unlikely(!monitor))
+    return m_tmu[tmu]->GetMinimumAddress();
+  }
+
+  FxU32 GlideDevice::GetTMUMaxAddress(GrChipID_t tmu) const {
+    if (tmu >= m_boardConfiguration.tmuCount)
       return 0;
 
-    wsi::WsiMode mode;
-    FxI32 size = 0;
-    int count = 0;
-    const bool extendedResolution = resTemplate->resolution == glide3x::GR_EXTENDED;
-    const bool extendedRefreshRate = resTemplate->refresh == glide3x::GR_EXTENDED;
-    Logger::debug(str::format("Reporting display modes extended status: ", extendedResolution, "@", extendedResolution));
-    for (DWORD idx = 0; wsi::getDisplayMode(monitor, idx, &mode); idx++) {
-      // let's hope everyone is using monitors with 32bit color support by now
-      if (mode.bitsPerPixel != 32)
-        continue;
+    return m_tmu[tmu]->GetMaximumAddress() - 16;
+  }
 
-      const size_t modeRefresh = mode.refreshRate.numerator / mode.refreshRate.denominator;
+  void GlideDevice::GetViewportDimensions(FxU32* x, FxU32* y, FxU32* width, FxU32* height) {
+    if (unlikely(x == nullptr || y == nullptr || width == nullptr || height == nullptr))
+      return;
 
-      GrScreenResolution_t resolution;
-      if (!UtilDimensionsToResolution(mode.width, mode.height, resolution, extendedResolution))
-        continue;
+    *x = m_state.viewport.offset.x;
+    *y = m_state.viewport.offset.y;
+    *width = m_state.viewport.extent.width;
+    *height = m_state.viewport.extent.height;
+  }
 
-      GrScreenRefresh_t refreshRate;
-      if (!UtilNumberToRefreshRate(modeRefresh, refreshRate, extendedRefreshRate))
-        continue;
+  void GlideDevice::GetBackBufferDimensions(FxU32* width, FxU32* height) {
+    if (likely(width != nullptr))
+      *width = m_state.viewport.extent.width;
 
-      if (resTemplate->resolution != glide3x::GR_QUERY_ANY && resTemplate->resolution != glide3x::GR_EXTENDED && resTemplate->resolution != resolution)
-        continue;
-
-      if (resTemplate->refresh != glide3x::GR_QUERY_ANY && resTemplate->refresh != glide3x::GR_EXTENDED && resTemplate->refresh != refreshRate)
-        continue;
-
-      if (output != nullptr) {
-        glide3x::GrResolution* curMode = output + count;
-
-        curMode->resolution = resolution;
-        curMode->numAuxBuffers = GLIDE_MAX_AUX_BUFFERS;
-        curMode->numColorBuffers = GLIDE_MAX_SWAP_CHAIN_BUFFERS;
-        curMode->refresh = refreshRate;
-        Logger::debug(str::format("Reporting display mode: ", mode.width, "x", mode.height, "@", modeRefresh, " (", resolution, "@", refreshRate, ")"));
-      }
-
-      count++;
-      size += sizeof(glide3x::GrResolution);
-    }
-
-    Logger::debug(str::format("Reporting display modes done: ", size));
-    return size;
+    if (likely(height != nullptr))
+      *height = m_state.viewport.extent.height;
   }
   
   void GlideDevice::SetAlphaBlendFunction(GrAlphaBlendFnc_t rgb_sf, GrAlphaBlendFnc_t rgb_df, GrAlphaBlendFnc_t alpha_sf, GrAlphaBlendFnc_t alpha_df) {
-    GlideDeviceLock lock = LockDevice();
-
     if (m_state.blend.dstAlpha != alpha_df || m_state.blend.dstColor != rgb_df ||
         m_state.blend.srcAlpha != alpha_sf || m_state.blend.srcColor != rgb_sf) {
       m_state.blend.dstAlpha = alpha_df;
@@ -1412,8 +1383,6 @@ namespace dxvk {
   }
 
   void GlideDevice::SetAlphaCombine(GrCombineFunction_t function, GrCombineFactor_t factor, GrCombineLocal_t local, GrCombineOther_t other, FxBool invert) {
-    GlideDeviceLock lock = LockDevice();
-
     if (m_state.alphaCombine.function != function || m_state.alphaCombine.factor != factor ||
         m_state.alphaCombine.local != local || m_state.alphaCombine.other != other || m_state.alphaCombine.invert != invert) {
       m_state.alphaCombine.function = function;
@@ -1421,7 +1390,7 @@ namespace dxvk {
       m_state.alphaCombine.local = local;
       m_state.alphaCombine.other = other;
       m_state.alphaCombine.invert = invert;
-      Logger::debug(str::format("pixelFxCombiner setAlphaCombine: "
+      DEBUGLOG(str::format("pixelFxCombiner setAlphaCombine: "
                                   , "alphaCombine.function - ", m_state.alphaCombine.function, ", "
                                   , "alphaCombine.factor - ", m_state.alphaCombine.factor, ", "
                                   , "alphaCombine.local - ", m_state.alphaCombine.local, ", "
@@ -1476,8 +1445,6 @@ namespace dxvk {
   }
 
   void GlideDevice::SetAlphaLighting(FxBool enable) {
-    GlideDeviceLock lock = LockDevice();
-
     if (m_state.alphaLighting != enable) {
       m_state.alphaLighting = enable;
       m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
@@ -1485,8 +1452,6 @@ namespace dxvk {
   }
 
   void GlideDevice::SetAlphaTestFunction(GrCmpFnc_t function) {
-    GlideDeviceLock lock = LockDevice();
-
     if (m_state.alphaTestFunction != function) {
       m_state.alphaTestFunction = function;
       m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
@@ -1494,8 +1459,6 @@ namespace dxvk {
   }
 
   void GlideDevice::SetAlphaTestReferenceValue(GrAlpha_t value) {
-    GlideDeviceLock lock = LockDevice();
-
     if (m_state.alphaTestReference != value) {
       m_state.alphaTestReference = value;
       m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
@@ -1503,17 +1466,13 @@ namespace dxvk {
   }
 
   void GlideDevice::SetChromaKeyMode(GrChromakeyMode_t mode) {
-    GlideDeviceLock lock = LockDevice();
-
     if (m_specData.chromaMode != static_cast<uint32_t>(mode)) {
-      m_specData.chromaMode = mode;
+      m_state.chromaMode = mode;
       m_dirty.set(GlideDeviceDirtyFlag::SpecializationEntries);
     }
   }
 
   void GlideDevice::SetChromaKeyValue(GrColor_t value) {
-    GlideDeviceLock lock = LockDevice();
-
     if (m_state.chromaKeyLow != value || m_state.chromaKeyHigh != value) {
       m_state.chromaKeyLow = value;
       m_state.chromaKeyHigh = value;
@@ -1522,15 +1481,13 @@ namespace dxvk {
   }
 
   void GlideDevice::SetColorCombine(GrCombineFunction_t function, GrCombineFactor_t factor, GrCombineLocal_t local, GrCombineOther_t other, FxBool invert) {
-    GlideDeviceLock lock = LockDevice();
-
     if (m_state.colorCombine.function != function || m_state.colorCombine.factor != factor || m_state.colorCombine.local != local || m_state.colorCombine.other != other || m_state.colorCombine.invert != invert) {
       m_state.colorCombine.function = function;
       m_state.colorCombine.factor = factor;
       m_state.colorCombine.local = local;
       m_state.colorCombine.other = other;
       m_state.colorCombine.invert = invert;
-      Logger::debug(str::format("pixelFxCombiner setColorCombine: "
+      DEBUGLOG(str::format("pixelFxCombiner setColorCombine: "
                                   , "colorCombine.function - ", function, ", "
                                   , "colorCombine.factor - ", factor, ", "
                                   , "colorCombine.local - ", local, ", "
@@ -1547,6 +1504,7 @@ namespace dxvk {
     GrCombineLocal_t local;
     GrCombineOther_t other;
     FxBool invert = false;
+    FxBool delta0 = false;
 
     switch (fnc) {
       case GR_COLORCOMBINE_ZERO:
@@ -1563,12 +1521,8 @@ namespace dxvk {
         other = GR_COMBINE_OTHER_NONE;
         invert = FXFALSE;
         break;
-      case GR_COLORCOMBINE_ITRGB_DELTA0: {
-        // TODO: proper handling of DELTA0 state
-        static bool sWarnShown = false;
-        if (!std::exchange(sWarnShown, true))
-          Logger::warn(str::format("GR_COLORCOMBINE_ITRGB_DELTA0 unsupported!"));
-      }
+      case GR_COLORCOMBINE_ITRGB_DELTA0:
+        delta0 = true;
         // fall-through
       case GR_COLORCOMBINE_ITRGB:
         function = GR_COMBINE_FUNCTION_LOCAL;
@@ -1591,12 +1545,8 @@ namespace dxvk {
         other = GR_COMBINE_OTHER_TEXTURE;
         invert = FXFALSE;
         break;
-      case GR_COLORCOMBINE_TEXTURE_TIMES_ITRGB_DELTA0: {
-        // TODO: proper handling of DELTA0 state
-        static bool sWarnShown = false;
-        if (!std::exchange(sWarnShown, true))
-          Logger::warn(str::format("GR_COLORCOMBINE_TEXTURE_TIMES_ITRGB_DELTA0 unsupported!"));
-      }
+      case GR_COLORCOMBINE_TEXTURE_TIMES_ITRGB_DELTA0:
+        delta0 = true;
         // fall-through
       case GR_COLORCOMBINE_TEXTURE_TIMES_ITRGB:
         function = GR_COMBINE_FUNCTION_SCALE_OTHER;
@@ -1673,7 +1623,7 @@ namespace dxvk {
         return;
     }
 
-    Logger::debug(str::format("pixelFxCombiner setColorCombineFunction: "
+    DEBUGLOG(str::format("pixelFxCombiner setColorCombineFunction: "
                                  , "function - ", fnc, ", "
                                  , "colorCombine.function - ", function, ", "
                                  , "colorCombine.factor - ", factor, ", "
@@ -1682,6 +1632,10 @@ namespace dxvk {
                                  , "colorCombine.invert - ", invert));
 
 
+    if (m_state.delta0 != delta0) {
+      m_state.delta0 = delta0;
+      m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
+    }
     SetColorCombine(function, factor, local, other, invert);
   }
 
@@ -1693,9 +1647,9 @@ namespace dxvk {
     }
   }
 
-  void GlideDevice::SetColorFormat(GrColorFormat_t color) {
-    if (m_state.colorFormat != color) {
-      m_state.colorFormat = color;
+  void GlideDevice::SetColorFormat(GrColorFormat_t colorFormat) {
+    if (m_state.colorFormat != colorFormat) {
+      m_state.colorFormat = colorFormat;
       m_dirty.set(GlideDeviceDirtyFlag::PushDataShared);
     }
   }
@@ -1703,6 +1657,20 @@ namespace dxvk {
   void GlideDevice::SetConstantColor(GrColor_t color) {
     if (m_state.constantColor != color) {
       m_state.constantColor = color;
+      m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
+    }
+  }
+
+  void GlideDevice::SetConstantColor4(FxFloat a, FxFloat r, FxFloat g, FxFloat b) {
+    const GrColor_t color = UtilConvertColor(GetColorFormat(), r, g, b, a, false);
+
+    if (m_state.constantColor != color) {
+      m_state.constantColor = color;
+      m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
+    }
+
+    if (unlikely(m_state.delta0 && m_state.delta0Color != color)) {
+      m_state.delta0Color = color;
       m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
     }
   }
@@ -1767,6 +1735,27 @@ namespace dxvk {
     }
   }
 
+  void GlideDevice::SetFogColor(GrColor_t fogColor) {
+    if (m_state.fog.color != fogColor) {
+      m_state.fog.color = fogColor;
+      m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
+    }
+  }
+
+  void GlideDevice::SetFogMode(glide3x::GrFogMode_t mode) {
+    if (m_state.fog.mode != mode) {
+      m_state.fog.mode = mode;
+      m_dirty.set(GlideDeviceDirtyFlag::SpecializationEntries);
+    }
+  }
+
+  void GlideDevice::SetFogTable(const GrFog_t *fogTable) {
+    if (memcmp(m_state.fog.table, fogTable, sizeof(m_state.fog.table)) != 0) {
+      memcpy(m_state.fog.table, fogTable, sizeof(m_state.fog.table));
+      m_dirty.set(GlideDeviceDirtyFlag::SharedPixelShaderData);
+    }
+  }
+
   void GlideDevice::SetHints(GrHint_t hintType, GrSTWHint_t hintMask) {
     switch (hintType) {
       case GR_HINT_STWHINT:
@@ -1783,15 +1772,13 @@ namespace dxvk {
   }
 
   void GlideDevice::SetRenderBuffer(GrBuffer_t buffer) {
-    if (unlikely(buffer != GR_BUFFER_FRONTBUFFER && buffer != GR_BUFFER_AUXBUFFER)) {
+    if (unlikely(buffer < GR_BUFFER_FRONTBUFFER || buffer > GR_BUFFER_AUXBUFFER)) {
       static bool sWarnShown = false;
       if (!std::exchange(sWarnShown, true))
         Logger::warn(str::format("Unexpected render buffer: ", buffer));
 
       return;
     }
-
-    // TODO: aux can be used not only for depth!
 
     if (m_state.renderBuffer != buffer) {
       m_state.renderBuffer = buffer;
@@ -1812,8 +1799,6 @@ namespace dxvk {
   }
 
   void GlideDevice::SetTexCombine(GrChipID_t tmu, GrCombineFunction_t rgb_function, GrCombineFactor_t rgb_factor, GrCombineFunction_t alpha_function, GrCombineFactor_t alpha_factor, FxBool rgb_invert, FxBool alpha_invert) {
-    GlideDeviceLock lock = LockDevice();
-
     Rc<GlideTMU> TMU = GetTMU(tmu);
     if (unlikely(TMU == nullptr))
       return;
@@ -1827,13 +1812,11 @@ namespace dxvk {
       TMU->m_state.texCombine.alphaFunction = alpha_function;
       TMU->m_state.texCombine.alphaFactor = alpha_factor;
       TMU->m_state.texCombine.alphaInvert = alpha_invert;
-      m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
+      m_dirty.set(GlideDeviceDirtyFlag::SharedPixelShaderData);
     }
   }
 
   void GlideDevice::SetTexCombineFunction(GrChipID_t tmu, GrTextureCombineFnc_t fnc) {
-    GlideDeviceLock lock = LockDevice();
-
     Rc<GlideTMU> TMU = GetTMU(tmu);
     if (unlikely(TMU == nullptr))
       return;
@@ -1944,13 +1927,11 @@ namespace dxvk {
       TMU->m_state.texCombine.colorFactor = colorFactor;
       TMU->m_state.texCombine.colorFunction = colorFunction;
       TMU->m_state.texCombine.colorInvert = colorInvert;
-      m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
+      m_dirty.set(GlideDeviceDirtyFlag::SharedPixelShaderData);
     }
   }
 
   void GlideDevice::SetTexClampMode(GrChipID_t tmu, GrTextureClampMode_t s_clampmode, GrTextureClampMode_t t_clampmode) {
-    GlideDeviceLock lock = LockDevice();
-
     Rc<GlideTMU> TMU = GetTMU(tmu);
     if (unlikely(TMU == nullptr))
       return;
@@ -1963,8 +1944,6 @@ namespace dxvk {
   }
 
   void GlideDevice::SetTexDetailControl(GrChipID_t tmu, FxI32 lod_bias, FxU8 detail_scale, FxFloat detail_max) {
-    GlideDeviceLock lock = LockDevice();
-
     Rc<GlideTMU> TMU = GetTMU(tmu);
     if (unlikely(TMU == nullptr))
       return;
@@ -1973,13 +1952,13 @@ namespace dxvk {
       TMU->m_state.texDetailControl.lodBias = lod_bias;
       TMU->m_state.texDetailControl.scale = detail_scale;
       TMU->m_state.texDetailControl.max = detail_max;
-      m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
+
+      // TODO
+      // m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
     }
   }
 
   void GlideDevice::SetTexFilterMode(GrChipID_t tmu, GrTextureFilterMode_t minfilter_mode, GrTextureFilterMode_t magfilter_mode) {
-    GlideDeviceLock lock = LockDevice();
-
     Rc<GlideTMU> TMU = GetTMU(tmu);
     if (unlikely(TMU == nullptr))
       return;
@@ -1992,8 +1971,6 @@ namespace dxvk {
   }
 
   void GlideDevice::SetTexLodBiasValue(GrChipID_t tmu, FxFloat bias) {
-    GlideDeviceLock lock = LockDevice();
-
     Rc<GlideTMU> TMU = GetTMU(tmu);
     if (unlikely(TMU == nullptr))
       return;
@@ -2005,8 +1982,6 @@ namespace dxvk {
   }
 
   void GlideDevice::SetTexMipMapMode(GrChipID_t tmu, GrMipMapMode_t mode, FxBool lodBlend) {
-    GlideDeviceLock lock = LockDevice();
-
     Rc<GlideTMU> TMU = GetTMU(tmu);
     if (unlikely(TMU == nullptr))
       return;
@@ -2022,9 +1997,6 @@ namespace dxvk {
     , glide3x::GrLOD_t smallLodLog2, glide3x::GrLOD_t largeLodLog2
     , glide3x::GrAspectRatio_t aspectRatioLog2
     , GrTextureFormat_t format) {
-    GlideDeviceLock lock = LockDevice();
-    Logger::debug(str::format("Set GPU texture request at TMU ", tmu, " with format ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(format)), " address: ", startAddress));
-
     if (tmu >= GLIDE_MAX_TEXTURESTAGES)
       return;
 
@@ -2040,12 +2012,10 @@ namespace dxvk {
     m_state.textures[tmu].format = format;
     m_state.textures[tmu].evenOdd = evenOdd;
 
-    Logger::debug(str::format("Set GPU texture at TMU ", tmu, " done with format ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(format)), " address: ", startAddress));
+    DEBUGLOG(str::format("Set GPU texture at TMU ", tmu, " with format ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(format)), " address: ", startAddress));
   }
 
   void GlideDevice::SetViewport(FxI32 x, FxI32 y, FxU32 width, FxU32 height) {
-    GlideDeviceLock lock = LockDevice();
-
     if (m_state.viewport.offset.x != x || m_state.viewport.offset.y != y ||
         m_state.viewport.extent.width != width || m_state.viewport.extent.height != height) {
       m_state.viewport.offset.x = x;
@@ -2058,8 +2028,6 @@ namespace dxvk {
   }
 
   void GlideDevice::SetCoordinateSpace(glide3x::GrCoordinateSpaceMode_t mode) {
-    GlideDeviceLock lock = LockDevice();
-
     if (m_state.coordinateSpace != mode) {
       m_state.coordinateSpace = mode;
       m_dirty.set(GlideDeviceDirtyFlag::PushDataShared);
@@ -2067,8 +2035,6 @@ namespace dxvk {
   }
 
   void GlideDevice::SetClipWindow(FxI32 minx, FxI32 miny, FxU32 maxx, FxU32 maxy) {
-    GlideDeviceLock lock = LockDevice();
-
     if (m_state.scissor.offset.x != minx || m_state.scissor.offset.y != miny ||
         m_state.scissor.extent.width != maxx || m_state.scissor.extent.height != maxy) {
       m_state.scissor.offset.x = minx;
@@ -2080,8 +2046,6 @@ namespace dxvk {
   }
 
   void GlideDevice::SetOriginLocation(GrOriginLocation_t origin) {
-    GlideDeviceLock lock = LockDevice();
-
     if (m_state.originLocation != origin) {
       m_state.originLocation = origin;
       m_dirty.set(GlideDeviceDirtyFlag::RasterizerState, GlideDeviceDirtyFlag::Viewport);
@@ -2089,8 +2053,6 @@ namespace dxvk {
   }
 
   void GlideDevice::SetVertexLayout(glide3x::GrVertexLayoutParam_t param, glide3x::GrVertexLayoutMode_t mode, glide3x::GrVertexLayoutOffset_t offset) {
-    GlideDeviceLock lock = LockDevice();
-
     if (m_state.vertexLayout.SetVertexLayout(param, mode, offset))
       m_dirty.set(GlideDeviceDirtyFlag::VertexLayout, GlideDeviceDirtyFlag::PushDataShared);
   }
@@ -2124,33 +2086,97 @@ namespace dxvk {
     }
   }
 
-  void GlideDevice::LoadState(void *state) {
+  void GlideDevice::GetState(void *state) {
     GlideDeviceLock lock = LockDevice();
 
     if (state == nullptr)
       return;
 
-    static bool sWarnShown = false;
-    if (!std::exchange(sWarnShown, true))
-      Logger::warn(str::format("LoadState not implemented!"));
+    uint32_t id = ++m_stateLastID;
+    *static_cast<uint32_t*>(state) = id;
+    m_states[id] = m_state;
   }
 
-  void GlideDevice::SaveState(const void *state) {
+  void GlideDevice::SetState(const void *state) {
     GlideDeviceLock lock = LockDevice();
 
     if (state == nullptr)
       return;
 
-    static bool sWarnShown = false;
-    if (!std::exchange(sWarnShown, true))
-      Logger::warn(str::format("SaveState not implemented!"));
+    uint32_t id = (static_cast<const uint32_t *>(state))[0];
+    auto it = m_states.find(id);
+    if (it != m_states.end()) {
+      m_state = it->second;
+      m_dirty.set(
+        GlideDeviceDirtyFlag::Blend,
+        GlideDeviceDirtyFlag::Depth,
+        GlideDeviceDirtyFlag::Framebuffer,
+        GlideDeviceDirtyFlag::FFShader,
+        GlideDeviceDirtyFlag::PushDataShared,
+        GlideDeviceDirtyFlag::PushDataFfps,
+        GlideDeviceDirtyFlag::RasterizerState,
+        GlideDeviceDirtyFlag::SharedPixelShaderData,
+        GlideDeviceDirtyFlag::SpecializationEntries,
+        GlideDeviceDirtyFlag::VertexLayout,
+        GlideDeviceDirtyFlag::Viewport
+      );
+    }
   }
 
-  Rc<GlideTMU> GlideDevice::GetTMU(GrChipID_t tmu) const {
-    if (tmu > m_boardConfiguration.tmuCount)
-      return nullptr;
+  FxI32 GlideDevice::QueryResolutions(const glide3x::GrResolution *resTemplate, glide3x::GrResolution *output) {
+    GlideDeviceLock lock = LockDevice();
 
-    return m_tmu[tmu];
+    DEBUGLOG("Reporting display modes request");
+    if (unlikely(resTemplate == nullptr))
+      return 0;
+
+    HMONITOR monitor = wsi::getWindowMonitor(m_window);
+    if (unlikely(!monitor))
+      return 0;
+
+    wsi::WsiMode mode;
+    FxI32 size = 0;
+    int count = 0;
+    const bool extendedResolution = resTemplate->resolution == glide3x::GR_EXTENDED;
+    const bool extendedRefreshRate = resTemplate->refresh == glide3x::GR_EXTENDED;
+    DEBUGLOG(str::format("Reporting display modes extended status: ", extendedResolution, "@", extendedResolution));
+    for (DWORD idx = 0; wsi::getDisplayMode(monitor, idx, &mode); idx++) {
+      // let's hope everyone is using monitors with 32bit color support by now
+      if (mode.bitsPerPixel != 32)
+        continue;
+
+      const size_t modeRefresh = mode.refreshRate.numerator / mode.refreshRate.denominator;
+
+      GrScreenResolution_t resolution;
+      if (!UtilDimensionsToResolution(mode.width, mode.height, resolution, extendedResolution))
+        continue;
+
+      GrScreenRefresh_t refreshRate;
+      if (!UtilNumberToRefreshRate(modeRefresh, refreshRate, extendedRefreshRate))
+        continue;
+
+      if (resTemplate->resolution != glide3x::GR_QUERY_ANY && resTemplate->resolution != glide3x::GR_EXTENDED && resTemplate->resolution != resolution)
+        continue;
+
+      if (resTemplate->refresh != glide3x::GR_QUERY_ANY && resTemplate->refresh != glide3x::GR_EXTENDED && resTemplate->refresh != refreshRate)
+        continue;
+
+      if (output != nullptr) {
+        glide3x::GrResolution* curMode = output + count;
+
+        curMode->resolution = resolution;
+        curMode->numAuxBuffers = GLIDE_MAX_AUX_BUFFERS;
+        curMode->numColorBuffers = GLIDE_MAX_SWAP_CHAIN_BUFFERS;
+        curMode->refresh = refreshRate;
+        DEBUGLOG(str::format("Reporting display mode: ", mode.width, "x", mode.height, "@", modeRefresh, " (", resolution, "@", refreshRate, ")"));
+      }
+
+      count++;
+      size += sizeof(glide3x::GrResolution);
+    }
+
+    DEBUGLOG(str::format("Reporting display modes done: ", size));
+    return size;
   }
 
   FxFloat GlideDevice::UtilFogTableIndexToW(FxI32 i) {
@@ -2220,43 +2246,4 @@ namespace dxvk {
     }
   }
 
-  FxU32 GlideDevice::GetTMUCount() const {
-    return m_boardConfiguration.tmuCount;
-  }
-
-  FxU32 GlideDevice::GetTMUMemory() const {
-    return m_boardConfiguration.tmuCount * m_boardConfiguration.tmuRam;
-  }
-
-  FxU32 GlideDevice::GetTMUMinAddress(GrChipID_t tmu) const {
-    if (tmu >= m_boardConfiguration.tmuCount)
-      return 0;
-
-    return m_tmu[tmu]->GetMinimumAddress();
-  }
-
-  FxU32 GlideDevice::GetTMUMaxAddress(GrChipID_t tmu) const {
-    if (tmu >= m_boardConfiguration.tmuCount)
-      return 0;
-
-    return m_tmu[tmu]->GetMaximumAddress() - 16;
-  }
-
-  void GlideDevice::GetViewportDimensions(FxU32* x, FxU32* y, FxU32* width, FxU32* height) {
-    if (unlikely(x == nullptr || y == nullptr || width == nullptr || height == nullptr))
-      return;
-
-    *x = m_state.viewport.offset.x;
-    *y = m_state.viewport.offset.y;
-    *width = m_state.viewport.extent.width;
-    *height = m_state.viewport.extent.height;
-  }
-
-  void GlideDevice::GetBackBufferDimensions(FxU32* width, FxU32* height) {
-    if (likely(width != nullptr))
-      *width = m_state.viewport.extent.width;
-
-    if (likely(height != nullptr))
-      *height = m_state.viewport.extent.height;
-  }
 }

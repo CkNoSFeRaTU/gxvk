@@ -32,7 +32,7 @@ namespace dxvk {
     for (std::size_t i = 0; i < glideOrderedParams.size(); ++i) {
       const auto& param = glideOrderedParams[i];
       if (m_vertexLayout.modes[param] == glide3x::GR_PARAM_ENABLE) {
-        Logger::debug(str::format("Vertex layout attribute enabling param: ", param));
+        DEBUGLOG(str::format("Vertex layout attribute enabling param: ", param));
         DxvkVertexAttribute attrib = {};
         switch (param) {
           case glide3x::GR_PARAM_XY:
@@ -111,7 +111,7 @@ namespace dxvk {
     }
 
     m_vertexSize = maxOffset + size;
-    Logger::debug(str::format("Calculated vertex layout size: ", m_vertexSize, " vs ", sizeof(glide2x::GrVertex)));
+    DEBUGLOG(str::format("Calculated vertex layout size: ", m_vertexSize, " vs ", sizeof(glide2x::GrVertex)));
   }
 
 }

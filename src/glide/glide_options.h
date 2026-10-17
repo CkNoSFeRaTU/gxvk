@@ -18,20 +18,21 @@ namespace dxvk {
   struct GlideOptions {
     GlideOptions(const Config& config);
 
+    bool      autoGenMipMaps;
     GlideCard card;
-    int32_t   presentInterval;
+    /// Use device local memory for constant buffers.
+    Tristate  deviceLocalConstantBuffers;
     bool      deviceReset;
-    bool      multithread;
-    bool      useMonitorResolution;
-
     bool      ignoreGammaCorrection;
-
     bool      hackNoBlend;
     bool      hackNoClears;
     bool      hackNoDepth;
     bool      hackNoLFB;
-
+    bool      hackNoMipMaps;
+    int32_t   presentInterval;
     int32_t   maxFrameRate;
+    bool      multithread;
+    bool      useMonitorResolution;
   };
 
 }

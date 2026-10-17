@@ -8,7 +8,7 @@
 
 namespace dxvk {
   Logger Logger::s_instance("glide3x.log");
-  GlideDevice* glideDevice = nullptr;
+  static GlideDevice* glideDevice = nullptr;
   constexpr FxI32 OneMB = 1024 * 1024;
 
   static inline void initDXVKDevice () {
@@ -26,12 +26,31 @@ namespace dxvk {
 
 extern "C" {
   using namespace dxvk;
+
+  // Extensions
+  void grChromaRangeExt(GrColor_t color0, GrColor_t color1, GrChromaRangeMode_t mode) {
+    DEBUGLOG("stub: grChromaRangeExt");
+  }
+
+  void grChromaRangeModeExt(GrChromaRangeMode_t mode) {
+    DEBUGLOG("stub: grChromaRangeModeExt");
+  }
+
+  void grTexChromaModeExt(GrChipID_t tmu, GrChromakeyMode_t mode) {
+    DEBUGLOG("stub: grTexChromaModeExt");
+  }
+
+  void grTexChromaRangeExt(GrChipID_t tmu, GrColor_t color0, GrColor_t color1, GrTexChromakeyMode_t mode)   {
+    DEBUGLOG("stub: grTexChromaRangeExt");
+  }
+
+  // API
   DLLEXPORT void __stdcall grAADrawTriangle(const void *a, const void *b, const void *c, FxBool ab_antialias, FxBool bc_antialias, FxBool ca_antialias) {
-    Logger::debug("stub: grAADrawTriangle");
+    DEBUGLOG("stub: grAADrawTriangle");
   }
 
   DLLEXPORT void __stdcall grAlphaBlendFunction(GrAlphaBlendFnc_t rgb_sf, GrAlphaBlendFnc_t rgb_df, GrAlphaBlendFnc_t alpha_sf, GrAlphaBlendFnc_t alpha_df) {
-    Logger::debug(">>> grAlphaBlendFunction");
+    DEBUGLOG(">>> grAlphaBlendFunction");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -40,7 +59,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grAlphaCombine(GrCombineFunction_t function, GrCombineFactor_t factor, GrCombineLocal_t local, GrCombineOther_t other, FxBool invert) {
-    Logger::debug(">>> grAlphaCombine");
+    DEBUGLOG(">>> grAlphaCombine");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -49,7 +68,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grAlphaControlsITRGBLighting(FxBool enable) {
-    Logger::debug(">>> grAlphaControlsITRGBLighting");
+    DEBUGLOG(">>> grAlphaControlsITRGBLighting");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -58,7 +77,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grAlphaTestFunction(GrCmpFnc_t function) {
-    Logger::debug(">>> grAlphaTestFunction");
+    DEBUGLOG(">>> grAlphaTestFunction");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -67,7 +86,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grAlphaTestReferenceValue(GrAlpha_t value) {
-    Logger::debug(">>> grAlphaTestReferenceValue");
+    DEBUGLOG(">>> grAlphaTestReferenceValue");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -76,7 +95,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grBufferClear(GrColor_t color, GrAlpha_t alpha, FxU32 depth) {
-    Logger::debug(">>> grBufferClear");
+    DEBUGLOG(">>> grBufferClear");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -85,7 +104,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grBufferSwap(FxU32 swap_interval) {
-    Logger::debug(">>> grBufferSwap");
+    DEBUGLOG(">>> grBufferSwap");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -94,11 +113,11 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grCheckForRoom(FxI32 n) {
-    Logger::debug("stub: grCheckForRoom");
+    DEBUGLOG("stub: grCheckForRoom");
   }
 
   DLLEXPORT void __stdcall grChromakeyMode(GrChromakeyMode_t mode) {
-    Logger::debug(">>> grChromakeyMode");
+    DEBUGLOG(">>> grChromakeyMode");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -107,7 +126,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grChromakeyValue(GrColor_t value) {
-    Logger::debug(">>> grChromakeyValue");
+    DEBUGLOG(">>> grChromakeyValue");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -116,11 +135,16 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grClipWindow(FxU32 minx, FxU32 miny, FxU32 maxx, FxU32 maxy) {
-    Logger::debug("stub: grClipWindow");
+    DEBUGLOG(">>> grClipWindow");
+
+    if (unlikely(glideDevice == nullptr))
+      return;
+
+    glideDevice->SetClipWindow(minx, miny, maxx, maxy);
   }
 
   DLLEXPORT void __stdcall grColorCombine(GrCombineFunction_t function, GrCombineFactor_t factor, GrCombineLocal_t local, GrCombineOther_t other, FxBool invert) {
-    Logger::debug(">>> grColorCombine");
+    DEBUGLOG(">>> grColorCombine");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -129,7 +153,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grColorMask(FxBool rgb, FxBool a) {
-    Logger::debug(">>> grColorMask");
+    DEBUGLOG(">>> grColorMask");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -138,7 +162,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grConstantColorValue(GrColor_t value) {
-    Logger::debug(">>> grConstantColorValue");
+    DEBUGLOG(">>> grConstantColorValue");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -147,7 +171,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grCoordinateSpace(glide3x::GrCoordinateSpaceMode_t mode) {
-    Logger::debug(">>> grCoordinateSpace");
+    DEBUGLOG(">>> grCoordinateSpace");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -156,7 +180,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grCullMode(GrCullMode_t mode) {
-    Logger::debug(">>> grCullMode");
+    DEBUGLOG(">>> grCullMode");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -165,7 +189,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grDepthBiasLevel(FxI32 level) {
-    Logger::debug(">>> grDepthBiasLevel");
+    DEBUGLOG(">>> grDepthBiasLevel");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -174,7 +198,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grDepthBufferFunction(GrCmpFnc_t function) {
-    Logger::debug(">>> grDepthBufferFunction");
+    DEBUGLOG(">>> grDepthBufferFunction");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -183,7 +207,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grDepthBufferMode(GrDepthBufferMode_t mode) {
-    Logger::debug(">>> grDepthBufferMode");
+    DEBUGLOG(">>> grDepthBufferMode");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -192,7 +216,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grDepthMask(FxBool mask) {
-    Logger::debug(">>> grDepthMask");
+    DEBUGLOG(">>> grDepthMask");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -201,7 +225,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grDepthRange(FxFloat n, FxFloat f) {
-    Logger::debug(">>> grDepthRange");
+    DEBUGLOG(">>> grDepthRange");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -210,15 +234,15 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grDisable(GrEnableMode_t mode) {
-    Logger::debug("stub: grDisable");
+    DEBUGLOG("stub: grDisable");
   }
 
   DLLEXPORT void __stdcall grDisableAllEffects() {
-    Logger::debug("stub: grDisableAllEffects");
+    DEBUGLOG("stub: grDisableAllEffects");
   }
 
   DLLEXPORT void __stdcall grDitherMode(GrDitherMode_t mode) {
-    Logger::debug(">>> grDitherMode");
+    DEBUGLOG(">>> grDitherMode");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -227,7 +251,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grDrawLine(const void *v1, const void *v2) {
-    Logger::debug(">>> grDrawLine");
+    DEBUGLOG(">>> grDrawLine");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -236,7 +260,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grDrawPoint(const void *pt) {
-    Logger::debug(">>> grDrawPoint");
+    DEBUGLOG(">>> grDrawPoint");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -245,7 +269,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grDrawTriangle(const void *a, const void *b, const void *c) {
-    Logger::debug(">>> grDrawTriangle");
+    DEBUGLOG(">>> grDrawTriangle");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -254,7 +278,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grDrawVertexArray(glide3x::GrDrawVertexArrayMode_t mode, FxU32 count, void *pointers) {
-    Logger::debug(">>> grDrawVertexArray");
+    DEBUGLOG(">>> grDrawVertexArray");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -263,7 +287,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grDrawVertexArrayContiguous(glide3x::GrDrawVertexArrayMode_t mode, FxU32 count, void *pointers, FxU32 stride) {
-    Logger::debug(">>> grDrawVertexArrayContiguous");
+    DEBUGLOG(">>> grDrawVertexArrayContiguous");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -272,19 +296,15 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grEnable(GrEnableMode_t mode) {
-    Logger::debug("stub: grEnable");
+    DEBUGLOG("stub: grEnable");
   }
 
   DLLEXPORT void __stdcall grErrorSetCallback(GrErrorCallbackFnc_t fnc) {
-    Logger::debug("stub: grErrorSetCallback");
+    DEBUGLOG("stub: grErrorSetCallback");
   }
 
   DLLEXPORT void __stdcall grFinish() {
-    Logger::debug("stub: grFinish");
-  }
-
-  DLLEXPORT void __stdcall grFlush() {
-    Logger::debug(">>> grFlush");
+    DEBUGLOG(">>> grFinish");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -292,79 +312,104 @@ extern "C" {
     return glideDevice->Flush();
   }
 
-  DLLEXPORT void __stdcall grFogColorValue(GrColor_t fogcolor) {
-    Logger::debug("stub: grFogColorValue");
+  DLLEXPORT void __stdcall grFlush() {
+    DEBUGLOG(">>> grFlush");
+
+    if (unlikely(glideDevice == nullptr))
+      return;
+
+    return glideDevice->ConsiderFlush(GpuFlushType::ImplicitWeakHint);
+  }
+
+  DLLEXPORT void __stdcall grFogColorValue(GrColor_t fogColor) {
+    DEBUGLOG(">>> grFogColorValue");
+
+    if (unlikely(glideDevice == nullptr))
+      return;
+
+    return glideDevice->SetFogColor(fogColor);
   }
 
   DLLEXPORT void __stdcall grFogMode(glide3x::GrFogMode_t mode) {
-    Logger::debug("stub: grFogMode");
+    DEBUGLOG(">>> grFogMode");
+
+    if (unlikely(glideDevice == nullptr))
+      return;
+
+    return glideDevice->SetFogMode(mode);
   }
 
-  DLLEXPORT void __stdcall grFogTable(const GrFog_t *ft) {
-    Logger::debug("stub: grFogTable");
+  DLLEXPORT void __stdcall grFogTable(const GrFog_t *fogTable) {
+    DEBUGLOG(">>> grFogTable");
+
+    if (unlikely(glideDevice == nullptr || fogTable == nullptr))
+      return;
+
+    return glideDevice->SetFogTable(fogTable);
   }
 
   DLLEXPORT FxU32 __stdcall grGet(glide3x::GrGetReset_t pname, FxU32 plength, FxI32 *params) {
-    Logger::debug(str::format(">>> grGet: ", pname));
+    DEBUGLOG(str::format(">>> grGet: ", pname));
 
     switch (pname) {
-      case(glide3x::GrGetReset_t::GR_BITS_GAMMA):
-        if (plength >= 4)
-          params[0] = 8;
-        break;
-      case(glide3x::GrGetReset_t::GR_BITS_DEPTH):
-        if (plength >= 4)
+      case glide3x::GR_BITS_DEPTH:
+        if (likely(plength >= 4))
           params[0] = 16;
         break;
-      case(glide3x::GrGetReset_t::GR_BITS_RGBA):
-        if (plength >= 4)
+      case glide3x::GR_BITS_GAMMA:
+        if (likely(plength >= 4))
+          params[0] = 8;
+        break;
+      case glide3x::GR_BITS_RGBA:
+        if (likely(plength >= 4))
           params[0] = 32;
         break;
-      case(glide3x::GrGetReset_t::GR_FOG_TABLE_ENTRIES):
-        if (plength >= 4)
+      case glide3x::GR_FOG_TABLE_ENTRIES:
+        if (likely(plength >= 4))
           params[0] = FOG_TABLE_ENTRIES_COUNT;
         break;
-      case(glide3x::GrGetReset_t::GR_GAMMA_TABLE_ENTRIES):
-        if (plength >= 4)
+      case glide3x::GR_GAMMA_TABLE_ENTRIES:
+        if (likely(plength >= 4))
           params[0] = GAMMA_TABLE_ENTRIES_COUNT;
         break;
-      case(glide3x::GrGetReset_t::GR_GLIDE_STATE_SIZE):
-        if (plength >= 4) {
-          if (glideDevice != nullptr)
+      case glide3x::GR_GLIDE_STATE_SIZE:
+        if (likely(plength >= 4)) {
+          if (likely(glideDevice != nullptr))
             params[0] = glideDevice->GlideStateSize();
           else
             params[0] = 0;
         }
         break;
-      case(glide3x::GrGetReset_t::GR_GLIDE_VERTEXLAYOUT_SIZE):
-        if (plength >= 4) {
-          if (glideDevice != nullptr)
+      case glide3x::GR_GLIDE_VERTEXLAYOUT_SIZE:
+        if (likely(plength >= 4)) {
+          if (likely(glideDevice != nullptr))
             params[0] = glideDevice->GetVertexLayoutSize();
           else
             params[0] = 0;
         }
         break;
-      case(glide3x::GrGetReset_t::GR_IS_BUSY):
-        if (plength >= 4)
-          params[0] = 0; // we are never busy
+      // TODO: look if there are any users which care about that
+      case glide3x::GR_LFB_PIXEL_PIPE:
+        if (likely(plength >= 4))
+          params[0] = 0;
         break;
-      case(glide3x::GrGetReset_t::GR_MAX_TEXTURE_ASPECT_RATIO):
-        if (plength >= 4)
+      case glide3x::GR_MAX_TEXTURE_ASPECT_RATIO:
+        if (likely(plength >= 4))
           params[0] = glide3x::GR_ASPECT_LOG2_8x1;
         break;
-      case(glide3x::GrGetReset_t::GR_MAX_TEXTURE_SIZE):
-        if (plength >= 4) {
-          if (glideDevice != nullptr) {
+      case glide3x::GR_MAX_TEXTURE_SIZE:
+        if (likely(plength >= 4)) {
+          if (likely(glideDevice != nullptr)) {
             const GlideBoardConfiguration* boardConfig = glideDevice->GetBoardConfiguration();
-            params[0] = boardConfig->maxTextureSize * OneMB;
+            params[0] = boardConfig->maxTextureSize;
           } else {
             params[0] = 0;
           }
         }
         break;
-      case(glide3x::GrGetReset_t::GR_MEMORY_FB):
-        if (plength >= 4) {
-          if (glideDevice != nullptr) {
+      case glide3x::GR_MEMORY_FB:
+        if (likely(plength >= 4)) {
+          if (likely(glideDevice != nullptr)) {
             const GlideBoardConfiguration* boardConfig = glideDevice->GetBoardConfiguration();
             if (boardConfig->uma)
               params[0] = 0;
@@ -373,17 +418,17 @@ extern "C" {
           }
         }
         break;
-      case(glide3x::GrGetReset_t::GR_MEMORY_TMU):
-        if (plength >= 4) {
-          if (glideDevice != nullptr)
+      case glide3x::GR_MEMORY_TMU:
+        if (likely(plength >= 4)) {
+          if (likely(glideDevice != nullptr))
             params[0] = glideDevice->GetTMUMemory() * OneMB;
           else
             params[0] = 0;
         }
         break;
-      case(glide3x::GrGetReset_t::GR_MEMORY_UMA):
-        if (plength >= 4) {
-          if (glideDevice != nullptr) {
+      case glide3x::GR_MEMORY_UMA:
+        if (likely(plength >= 4)) {
+          if (likely(glideDevice != nullptr)) {
             const GlideBoardConfiguration* boardConfig = glideDevice->GetBoardConfiguration();
             if (boardConfig->uma)
               params[0] = glideDevice->GetTMUMemory() * OneMB * boardConfig->tmuCount;
@@ -394,33 +439,34 @@ extern "C" {
           }
         }
         break;
-      case(glide3x::GrGetReset_t::GR_NUM_BOARDS):
-        if (plength >= 4) {
-          if (glideDevice != nullptr)
+      case glide3x::GR_NON_POWER_OF_TWO_TEXTURES:
+        // Docs state "Not implemented in the initial release of Glide 3.0." so maybe was never supported?
+        if (likely(plength >= 4))
+          params[0] = 0;
+        break;
+      case glide3x::GR_NUM_BOARDS:
+        if (likely(plength >= 4)) {
+          if (likely(glideDevice != nullptr))
             params[0] = glideDevice->GetHWConfiguration()->num_sst;
           else
             params[0] = 1;
         }
         break;
-      case(glide3x::GrGetReset_t::GR_NUM_FB):
-        if (plength >= 4)
+      case glide3x::GR_NUM_FB:
+        if (likely(plength >= 4))
           params[0] = 1;
         break;
-      case(glide3x::GrGetReset_t::GR_NUM_TMU):
-        if (plength >= 4) {
+      case glide3x::GR_NUM_TMU:
+        if (likely(plength >= 4)) {
           if (glideDevice != nullptr)
             params[0] = glideDevice->GetTMUCount();
           else
             params[0] = 0;
         }
         break;
-      case(glide3x::GrGetReset_t::GR_PENDING_BUFFERSWAPS):
-        if (plength >= 4)
-          params[0] = 0; // we are never busy
-        break;
-      case(glide3x::GrGetReset_t::GR_REVISION_FB):
-        if (plength >= 4) {
-          if (glideDevice != nullptr) {
+      case glide3x::GR_REVISION_FB:
+        if (likely(plength >= 4)) {
+          if (likely(glideDevice != nullptr)) {
             const GlideBoardConfiguration* boardConfig = glideDevice->GetBoardConfiguration();
             params[0] = boardConfig->fbRev;
           } else {
@@ -428,9 +474,9 @@ extern "C" {
           }
         }
         break;
-      case(glide3x::GrGetReset_t::GR_REVISION_TMU):
-        if (plength >= 4) {
-          if (glideDevice != nullptr) {
+      case glide3x::GR_REVISION_TMU:
+        if (likely(plength >= 4)) {
+          if (likely(glideDevice != nullptr)) {
             const GlideBoardConfiguration* boardConfig = glideDevice->GetBoardConfiguration();
             params[0] = boardConfig->tmuRev;
           } else {
@@ -438,9 +484,9 @@ extern "C" {
           }
         }
         break;
-      case(glide3x::GrGetReset_t::GR_SUPPORTS_PASSTHRU):
-        if (plength >= 4) {
-          if (glideDevice != nullptr) {
+      case glide3x::GR_SUPPORTS_PASSTHRU:
+        if (likely(plength >= 4)) {
+          if (likely(glideDevice != nullptr)) {
             const GlideBoardConfiguration* boardConfig = glideDevice->GetBoardConfiguration();
             params[0] = boardConfig->passthrough;
           } else {
@@ -448,13 +494,13 @@ extern "C" {
           }
         }
         break;
-      case(glide3x::GrGetReset_t::GR_TEXTURE_ALIGN):
-        if (plength >= 4)
+      case glide3x::GR_TEXTURE_ALIGN:
+        if (likely(plength >= 4))
           params[0] = SST1_TEXTURE_ALIGN;
         break;
-      case(glide3x::GrGetReset_t::GR_VIEWPORT):
-        if (plength >= 16) {
-          if (glideDevice != nullptr) {
+      case glide3x::GR_VIEWPORT:
+        if (likely(plength >= 16)) {
+          if (likely(glideDevice != nullptr)) {
             FxU32 x, y, width, height;
             glideDevice->GetViewportDimensions(&x, &y, &width, &height);
             params[0] = x;
@@ -469,52 +515,73 @@ extern "C" {
           }
         }
         break;
-      case(glide3x::GrGetReset_t::GR_WDEPTH_MIN_MAX):
-        if (plength >= 8) {
+      case glide3x::GR_WDEPTH_MIN_MAX:
+        if (likely(plength >= 8)) {
           params[0] = SST1_WDEPTHVALUE_NEAREST;
           params[1] = SST1_WDEPTHVALUE_FARTHEST;
         }
         break;
-      case(glide3x::GrGetReset_t::GR_ZDEPTH_MIN_MAX):
-        if (plength >= 8) {
+      case glide3x::GR_ZDEPTH_MIN_MAX:
+        if (likely(plength >= 8)) {
           params[0] = SST1_ZDEPTHVALUE_NEAREST;
           params[1] = SST1_ZDEPTHVALUE_FARTHEST;
         }
         break;
+      // we are not in CRT days, beam is always 0,0
+      case glide3x::GR_VIDEO_POSITION:
+        if (likely(plength >= 8)) {
+          params[0] = 0;
+          params[1] = 0;
+        }
+        break;
+      // we are never busy
+      case glide3x::GR_FIFO_FULLNESS:
+      case glide3x::GR_IS_BUSY:
+      case glide3x::GR_PENDING_BUFFERSWAPS:
+      // we are not reporting stats back
+      case glide3x::GR_STATS_LINES:
+      case glide3x::GR_STATS_PIXELS_AFUNC_FAIL:
+      case glide3x::GR_STATS_PIXELS_CHROMA_FAIL:
+      case glide3x::GR_STATS_PIXELS_DEPTHFUNC_FAIL:
+      case glide3x::GR_STATS_PIXELS_IN:
+      case glide3x::GR_STATS_PIXELS_OUT:
+      case glide3x::GR_STATS_PIXELS:
+      case glide3x::GR_STATS_POINTS:
+      case glide3x::GR_STATS_TRIANGLES_IN:
+      case glide3x::GR_STATS_TRIANGLES_OUT:
+      case glide3x::GR_STATS_TRIANGLES:
+      case glide3x::GR_SWAP_HISTORY:
+        if (likely(plength >= 4)) {
+          params[0] = 0;
+        }
+        break;
       default:
         Logger::warn(str::format("Unknown grGet pname: ", pname));
+        if (likely(plength >= 4)) {
+          params[0] = 0;
+        }
         break;
     }
 
     return plength;
   }
 
-  DLLEXPORT GrProc __stdcall grGetProcAddress(char *procName) {
-    Logger::debug(">>> grGetProcAddress");
-
-    if (procName == nullptr)
-      return nullptr;
-
-    Logger::err(str::format("Unsupported extention: ", procName));
-    return nullptr;
-  }
-
   DLLEXPORT const char* __stdcall grGetString(glide3x::GrGetParam_t pname) {
-    Logger::debug(">>> grGetString");
+    DEBUGLOG(">>> grGetString");
 
     switch (pname) {
-      case(glide3x::GrGetParam_t::GR_EXTENSION):
-        return " ";
-      case(glide3x::GrGetParam_t::GR_HARDWARE):
-        if (glideDevice != nullptr) {
+      case glide3x::GR_EXTENSION:
+        // TODO: PALETTE6666 is buggy for some reason in NFS5, investigate
+        return "CHROMARANGE FOGCOORD TEXCHROMA TEXMIRROR ";
+      case glide3x::GR_HARDWARE:
+        if (likely(glideDevice != nullptr))
           return glideDevice->GetBoardConfiguration()->name.c_str();
-        }
         return "GXVK";
-      case(glide3x::GrGetParam_t::GR_RENDERER):
+      case glide3x::GR_RENDERER:
         return "Glide";
-      case(glide3x::GrGetParam_t::GR_VENDOR):
+      case glide3x::GR_VENDOR:
         return "GXVK";
-      case(glide3x::GrGetParam_t::GR_VERSION):
+      case glide3x::GR_VERSION:
         return "3.0";
     }
 
@@ -522,16 +589,16 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grGlideGetState(void *state) {
-    Logger::debug(">>> grGlideGetState");
+    DEBUGLOG(">>> grGlideGetState");
 
     if (unlikely(glideDevice == nullptr))
       return;
 
-    glideDevice->LoadState(state);
+    glideDevice->GetState(state);
   }
 
   DLLEXPORT void __stdcall grGlideGetVertexLayout(void *layout) {
-    Logger::debug(">>> grGlideGetVertexLayout");
+    DEBUGLOG(">>> grGlideGetVertexLayout");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -540,22 +607,22 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grGlideInit() {
-    Logger::debug(">>> grGlideInit");
+    DEBUGLOG(">>> grGlideInit");
 
     initDXVKDevice();
   }
 
   DLLEXPORT void __stdcall grGlideSetState(const void *state) {
-    Logger::debug(">>> grGlideSetState");
+    DEBUGLOG(">>> grGlideSetState");
 
     if (unlikely(glideDevice == nullptr))
       return;
 
-    glideDevice->SaveState(state);
+    glideDevice->SetState(state);
   }
 
   DLLEXPORT void __stdcall grGlideSetVertexLayout(const void *layout) {
-    Logger::debug(">>> grGlideSetVertexLayout");
+    DEBUGLOG(">>> grGlideSetVertexLayout");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -564,7 +631,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grGlideShutdown() {
-    Logger::debug(">>> grGlideShutdown");
+    DEBUGLOG(">>> grGlideShutdown");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -583,15 +650,15 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grLfbConstantAlpha(GrAlpha_t alpha) {
-    Logger::debug("stub: grLfbConstantAlpha");
+    DEBUGLOG("stub: grLfbConstantAlpha");
   }
 
   DLLEXPORT void __stdcall grLfbConstantDepth(FxU32 depth) {
-    Logger::debug("stub: grLfbConstantDepth");
+    DEBUGLOG("stub: grLfbConstantDepth");
   }
 
   DLLEXPORT FxBool __stdcall grLfbLock(GrLock_t type, GrBuffer_t buffer, GrLfbWriteMode_t writeMode, GrOriginLocation_t origin, FxBool pixelPipeline, GrLfbInfo_t *info) {
-    Logger::debug(">>> grLfbLock");
+    DEBUGLOG(">>> grLfbLock");
 
     if (unlikely(glideDevice == nullptr))
       return FXFALSE;
@@ -599,32 +666,35 @@ extern "C" {
     return glideDevice->LinearBufferLock(type, buffer, writeMode, origin, pixelPipeline, info);
   }
 
-  DLLEXPORT FxBool __stdcall grLfbReadRegion(GrBuffer_t buffer, FxU32 x, FxU32 y, FxU32 width, FxU32 height, FxU32 stride, void *data) {
-    Logger::debug(">>> grLfbReadRegion");
+  DLLEXPORT FxBool __stdcall grLfbReadRegion(GrBuffer_t srcBuffer, FxU32 srcX, FxU32 srcY, FxU32 srcWidth, FxU32 srcHeight, FxU32 dstStride, void *dstData) {
+    DEBUGLOG(">>> grLfbReadRegion");
+
+    if (unlikely(glideDevice == nullptr || dstData == nullptr))
+      return FXFALSE;
 
     GrLfbInfo_t info;
     info.size = sizeof(GrLfbInfo_t);
     // Docs says that GR_LFBWRITEMODE_565 is assumed
-    if (!glideDevice->LinearBufferLock(GR_LFB_READ_ONLY, buffer, GR_LFBWRITEMODE_565, GR_ORIGIN_UPPER_LEFT, FXFALSE, &info))
+    FxU32 blockSize = 2;
+    if (!glideDevice->LinearBufferLock(GR_LFB_READ_ONLY, srcBuffer, GR_LFBWRITEMODE_565, GR_ORIGIN_UPPER_LEFT, FXFALSE, &info))
       return FXFALSE;
 
-    size_t pitch = std::min(info.strideInBytes, stride);
-    uint8_t *src = static_cast<uint8_t*>(info.lfbPtr);
-    uint8_t *dst = static_cast<uint8_t*>(data);
-    for (FxU32 h = 0; h < height; h++) {
-      memcpy(dst, src, pitch);
-      src += info.strideInBytes;
-      dst += stride;
+    uint8_t* dstBase  = reinterpret_cast<uint8_t*>(dstData);
+    uint8_t* srcBase = reinterpret_cast<uint8_t*>(info.lfbPtr);
+    for (FxU32 h = 0; h < srcHeight; ++h) {
+        uint8_t* srcRow = srcBase + ((srcY + h) * info.strideInBytes) + (srcX * blockSize);
+        uint8_t* dstRow = dstBase + (h * dstStride);
+        memcpy(dstRow, srcRow, dstStride);
     }
 
-    if (!glideDevice->LinearBufferUnlock(GR_LFB_READ_ONLY, buffer))
+    if (!glideDevice->LinearBufferUnlock(GR_LFB_READ_ONLY, srcBuffer))
       return FXFALSE;
 
     return FXTRUE;
   }
 
   DLLEXPORT FxBool __stdcall grLfbUnlock(GrLock_t type, GrBuffer_t buffer) {
-    Logger::debug(">>> grLfbUnlock");
+    DEBUGLOG(">>> grLfbUnlock");
 
     if (unlikely(glideDevice == nullptr))
       return FXFALSE;
@@ -633,51 +703,57 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grLfbWriteColorFormat(GrColorFormat_t colorFormat) {
-    Logger::debug("stub: grLfbWriteColorFormat");
+    DEBUGLOG("stub: grLfbWriteColorFormat");
   }
 
   DLLEXPORT void __stdcall grLfbWriteColorSwizzle(FxBool swizzleBytes, FxBool swapWords) {
-    Logger::debug("stub: grLfbWriteColorSwizzle");
+    DEBUGLOG("stub: grLfbWriteColorSwizzle");
   }
 
-  DLLEXPORT FxBool __stdcall grLfbWriteRegion(GrBuffer_t dst_buffer, FxU32 dst_x, FxU32 dst_y, GrLfbSrcFmt_t src_format, FxU32 src_width, FxU32 src_height, FxBool pixelPipeline, FxI32 src_stride, void *src_data) {
-    Logger::debug(">>> grLfbWriteRegion");
+  DLLEXPORT FxBool __stdcall grLfbWriteRegion(GrBuffer_t dstBuffer, FxU32 dstX, FxU32 dstY, GrLfbSrcFmt_t srcFormat, FxU32 srcWidth, FxU32 srcHeight,  FxBool pixelPipeline, FxI32 srcStride, void *srcData) {
+    DEBUGLOG(">>> grLfbWriteRegion");
 
-    if (unlikely(glideDevice == nullptr || src_data == nullptr))
+    if (unlikely(glideDevice == nullptr || srcData == nullptr || srcStride == 0))
       return FXFALSE;
 
     GrLfbInfo_t info;
     info.size = sizeof(GrLfbInfo_t);
-    // Docs says that GR_LFBWRITEMODE_565 is assumed
-    if (!glideDevice->LinearBufferLock(GR_LFB_WRITE_ONLY, dst_buffer, GR_LFBWRITEMODE_565, GR_ORIGIN_UPPER_LEFT, FXFALSE, &info))
+
+    GrIntFmt_t format = UtilLFBSrcFormatToIFormat(srcFormat);
+    if (!glideDevice->LinearBufferLock(GR_LFB_WRITE_ONLY, dstBuffer, UtilIFormatToLFBWriteMode(format), GR_ORIGIN_UPPER_LEFT, FXFALSE, &info))
       return FXFALSE;
 
-    size_t pitch = std::min(static_cast<FxI32>(info.strideInBytes), src_stride);
-    uint8_t *src = static_cast<uint8_t*>(src_data);
-    uint8_t *dst = static_cast<uint8_t*>(info.lfbPtr);
-    for (FxU32 h = 0; h < src_height; h++) {
-      memcpy(dst, src, pitch);
-      src += src_stride;
-      dst += info.strideInBytes;
+    FxU32 blockSize = 0;
+    UtilTextureFormatSize(format, &blockSize);
+    blockSize >>= 3;
+    if (unlikely(blockSize == 0))
+      return FXFALSE;
+
+    uint8_t* dstBase = reinterpret_cast<uint8_t*>(info.lfbPtr);
+    uint8_t* srcBase  = reinterpret_cast<uint8_t*>(srcData);
+    for (FxU32 h = 0; h < srcHeight; ++h) {
+        uint8_t* dstRow = dstBase + ((dstY + h) * info.strideInBytes) + (dstX * blockSize);
+        uint8_t* srcRow = srcBase + (h * srcStride);
+        memcpy(dstRow, srcRow, srcWidth * blockSize);
     }
 
-    if (!glideDevice->LinearBufferUnlock(GR_LFB_WRITE_ONLY, dst_buffer))
+    if (!glideDevice->LinearBufferUnlock(GR_LFB_WRITE_ONLY, dstBuffer))
       return FXFALSE;
 
     return FXTRUE;
   }
 
   DLLEXPORT void __stdcall grLoadGammaTable(FxU32 nentries, FxU32 *red, FxU32 *green, FxU32 *blue) {
-    Logger::debug("stub: grLoadGammaTable");
+    DEBUGLOG("stub: grLoadGammaTable");
 
     if (unlikely(glideDevice == nullptr || nentries == 0 || red == nullptr || green == nullptr || blue == nullptr))
       return;
 
-    // TODO: implement proper table on swapchain
+    // TODO: implement proper gamma table on swapchain
   }
 
   DLLEXPORT FxI32 __stdcall grQueryResolutions(const glide3x::GrResolution *resTemplate, glide3x::GrResolution *output) {
-    Logger::debug(">>> grQueryResolutions");
+    DEBUGLOG(">>> grQueryResolutions");
     if (unlikely(glideDevice == nullptr))
       return 0;
 
@@ -685,7 +761,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grRenderBuffer(GrBuffer_t buffer) {
-    Logger::debug(">>> grRenderBuffer");
+    DEBUGLOG(">>> grRenderBuffer");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -694,33 +770,33 @@ extern "C" {
   }
 
   DLLEXPORT FxBool __stdcall grReset(glide3x::GrGetReset_t pname) {
-    Logger::debug("stub: grReset");
+    DEBUGLOG("stub: grReset");
     return FXFALSE;
   }
 
   DLLEXPORT FxBool __stdcall grSelectContext(GrContext_t context) {
-    Logger::debug("stub: grSelectContext");
+    DEBUGLOG("stub: grSelectContext");
     return FXFALSE;
   }
 
   DLLEXPORT void __stdcall grSetNumPendingBuffers(FxI32 NumPendingBuffers) {
-    Logger::debug("stub: grSetNumPendingBuffers");
+    DEBUGLOG("stub: grSetNumPendingBuffers");
   }
 
   DLLEXPORT void __stdcall grSplash(float x, float y, float width, float height, FxU32 frame) {
-    Logger::debug("stub: grSplash");
+    DEBUGLOG("stub: grSplash");
   }
 
   DLLEXPORT void __stdcall grSstConfigPipeline(GrChipID_t chip, GrSstRegister reg, FxU32 value) {
-    Logger::debug("stub: grSstConfigPipeline");
+    DEBUGLOG("stub: grSstConfigPipeline");
   }
 
   DLLEXPORT void __stdcall grSstOrigin(GrOriginLocation_t origin) {
-    Logger::debug("stub: grSstOrigin");
+    DEBUGLOG("stub: grSstOrigin");
   }
 
   DLLEXPORT void __stdcall grSstSelect(FxI32 sst) {
-    Logger::debug(">>> grSstSelect");
+    DEBUGLOG(">>> grSstSelect");
 
     // We are emulating a single card
     if (unlikely(sst != 0)) {
@@ -729,11 +805,11 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grSstVidMode(FxU32 whichSst, FxVideoTimingInfo *vidTimings) {
-    Logger::debug("stub: grSstVidMode");
+    DEBUGLOG("stub: grSstVidMode");
   }
 
   DLLEXPORT FxBool __stdcall grSstWinClose(GrContext_t context) {
-    Logger::debug(">>> grSstWinClose");
+    DEBUGLOG(">>> grSstWinClose");
 
     if (context == 1 && glideDevice != nullptr) {
       glideDevice->WindowClose();
@@ -750,7 +826,7 @@ extern "C" {
                                                GrOriginLocation_t originLocation,
                                                FxI32 nColBuffers,
                                                FxI32 nAuxBuffers) {
-    Logger::debug(">>> grSstWinOpen");
+    DEBUGLOG(">>> grSstWinOpen");
 
     if (unlikely(glideDevice == nullptr))
       return 0;
@@ -764,7 +840,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grStippleMode(glide3x::GrStippleMode_t mode) {
-    Logger::debug(">>> grStippleMode");
+    DEBUGLOG(">>> grStippleMode");
     if (unlikely(glideDevice == nullptr))
       return;
 
@@ -772,7 +848,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grStipplePattern(glide3x::GrStipplePattern_t pattern) {
-    Logger::debug(">>> grStipplePattern");
+    DEBUGLOG(">>> grStipplePattern");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -781,13 +857,13 @@ extern "C" {
   }
 
   DLLEXPORT FxU32 __stdcall grTexCalcMemRequired(glide3x::GrLOD_t lodmin, glide3x::GrLOD_t lodmax, glide3x::GrAspectRatio_t aspect, GrTextureFormat_t fmt) {
-    Logger::debug(">>> grTexCalcMemRequired");
+    DEBUGLOG(">>> grTexCalcMemRequired");
 
     return UtilGetTextureSize(lodmin, lodmax, aspect, fmt);
   }
 
   DLLEXPORT void __stdcall grTexClampMode(GrChipID_t tmu, GrTextureClampMode_t s_clampmode, GrTextureClampMode_t t_clampmode) {
-    Logger::debug(">>> grTexClampMode");
+    DEBUGLOG(">>> grTexClampMode");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -796,7 +872,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grTexCombine(GrChipID_t tmu, GrCombineFunction_t rgb_function, GrCombineFactor_t rgb_factor, GrCombineFunction_t alpha_function, GrCombineFactor_t alpha_factor, FxBool rgb_invert, FxBool alpha_invert) {
-    Logger::debug(">>> grTexCombine");
+    DEBUGLOG(">>> grTexCombine");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -805,7 +881,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grTexDetailControl(GrChipID_t tmu, FxI32 lod_bias, FxU8 detail_scale, FxFloat detail_max) {
-    Logger::debug(">>> grTexDetailControl");
+    DEBUGLOG(">>> grTexDetailControl");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -814,7 +890,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grTexDownloadMipMap(GrChipID_t tmu, FxU32 startAddress, MipMapLevelMask_t evenOdd, glide3x::GrTexInfo *info) {
-    Logger::debug(">>> grTexDownloadMipMap");
+    DEBUGLOG(">>> grTexDownloadMipMap");
 
     if (unlikely(glideDevice == nullptr || info == nullptr || info->data == nullptr))
       return;
@@ -835,7 +911,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grTexDownloadMipMapLevel(GrChipID_t tmu, FxU32 startAddress, glide3x::GrLOD_t thisLod, glide3x::GrLOD_t largeLod, glide3x::GrAspectRatio_t aspectRatio, GrTextureFormat_t format, MipMapLevelMask_t evenOdd, void *data) {
-    Logger::debug(">>> grTexDownloadMipMapLevel");
+    DEBUGLOG(">>> grTexDownloadMipMapLevel");
 
     if (unlikely(glideDevice == nullptr || data == nullptr))
       return;
@@ -856,7 +932,7 @@ extern "C" {
   }
 
   DLLEXPORT FxBool __stdcall grTexDownloadMipMapLevelPartial(GrChipID_t tmu, FxU32 startAddress, glide3x::GrLOD_t thisLod, glide3x::GrLOD_t largeLod, glide3x::GrAspectRatio_t aspectRatio, GrTextureFormat_t format, MipMapLevelMask_t evenOdd, void *data, FxI32 start, FxI32 end) {
-    Logger::debug(">>> grTexDownloadMipMapLevelPartial");
+    DEBUGLOG(">>> grTexDownloadMipMapLevelPartial");
 
     if (unlikely(glideDevice == nullptr || data == nullptr))
       return FXFALSE;
@@ -879,7 +955,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grTexDownloadTable(GrTexTable_t type, void *data) {
-    Logger::debug(">>> grTexDownloadTable");
+    DEBUGLOG(">>> grTexDownloadTable");
 
     if (unlikely(glideDevice == nullptr || data == nullptr))
       return;
@@ -902,7 +978,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grTexDownloadTablePartial(GrTexTable_t type, void * data, FxI32 start, FxI32 end) {
-    Logger::debug(">>> grTexDownloadTablePartial");
+    DEBUGLOG(">>> grTexDownloadTablePartial");
 
     if (unlikely(glideDevice == nullptr || data == nullptr))
       return;
@@ -925,7 +1001,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grTexFilterMode(GrChipID_t tmu, GrTextureFilterMode_t minfilter_mode, GrTextureFilterMode_t magfilter_mode) {
-    Logger::debug(">>> grTexFilterMode");
+    DEBUGLOG(">>> grTexFilterMode");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -934,7 +1010,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grTexLodBiasValue(GrChipID_t tmu, FxFloat bias) {
-    Logger::debug(">>> grTexLodBiasValue");
+    DEBUGLOG(">>> grTexLodBiasValue");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -943,7 +1019,7 @@ extern "C" {
   }
 
   DLLEXPORT FxU32 __stdcall grTexMaxAddress(GrChipID_t tmu) {
-    Logger::debug(">>> grTexMaxAddress");
+    DEBUGLOG(">>> grTexMaxAddress");
 
     if (unlikely(glideDevice == nullptr))
       return 0;
@@ -952,7 +1028,7 @@ extern "C" {
   }
 
   DLLEXPORT FxU32 __stdcall grTexMinAddress(GrChipID_t tmu) {
-    Logger::debug(">>> grTexMinAddress");
+    DEBUGLOG(">>> grTexMinAddress");
 
     if (unlikely(glideDevice == nullptr))
       return 0;
@@ -961,7 +1037,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grTexMipMapMode(GrChipID_t tmu, GrMipMapMode_t mode, FxBool lodBlend) {
-    Logger::debug(">>> grTexMipMapMode");
+    DEBUGLOG(">>> grTexMipMapMode");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -970,19 +1046,19 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grTexMultibase(GrChipID_t tmu, FxBool enable) {
-    Logger::debug("stub: grTexMultibase");
+    DEBUGLOG("stub: grTexMultibase");
   }
 
   DLLEXPORT void __stdcall grTexMultibaseAddress(GrChipID_t tmu, GrTexBaseRange_t range, FxU32 startAddress, MipMapLevelMask_t evenOdd, glide3x::GrTexInfo *info) {
-    Logger::debug("stub: grTexMultibaseAddress");
+    DEBUGLOG("stub: grTexMultibaseAddress");
   }
 
   DLLEXPORT void __stdcall grTexNCCTable(GrNCCTable_t table) {
-    Logger::debug("stub: grTexNCCTable");
+    DEBUGLOG("stub: grTexNCCTable");
   }
 
   DLLEXPORT void __stdcall grTexSource(GrChipID_t tmu, FxU32 startAddress, MipMapLevelMask_t evenOdd, glide3x::GrTexInfo* info) {
-    Logger::debug(">>> grTexSource");
+    DEBUGLOG(">>> grTexSource");
 
     if (info == nullptr)
       return;
@@ -991,7 +1067,7 @@ extern "C" {
   }
 
   DLLEXPORT FxU32 __stdcall grTexTextureMemRequired(MipMapLevelMask_t evenOdd, glide3x::GrTexInfo *info) {
-    Logger::debug(">>> grTexTextureMemRequired");
+    DEBUGLOG(">>> grTexTextureMemRequired");
 
     if (info == nullptr)
       return 0;
@@ -1000,7 +1076,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grVertexLayout(glide3x::GrVertexLayoutParam_t param, glide3x::GrVertexLayoutOffset_t offset, glide3x::GrVertexLayoutMode_t mode) {
-    Logger::debug(str::format(">>> grVertexLayout", param));
+    DEBUGLOG(str::format(">>> grVertexLayout", param));
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -1009,7 +1085,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grViewport(FxI32 x, FxI32 y, FxI32 width, FxI32 height) {
-    Logger::debug(">>> grViewport");
+    DEBUGLOG(">>> grViewport");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -1018,17 +1094,17 @@ extern "C" {
   }
 
   DLLEXPORT FxBool __stdcall gu3dfGetInfo(const char *filename, glide3x::Gu3dfInfo *info) {
-    Logger::debug("stub: gu3dfGetInfo");
+    DEBUGLOG("stub: gu3dfGetInfo");
     return FXFALSE;
   }
 
   DLLEXPORT FxBool __stdcall gu3dfLoad(const char *filename, glide3x::Gu3dfInfo *data) {
-    Logger::debug("stub: gu3dfLoad");
+    DEBUGLOG("stub: gu3dfLoad");
     return FXFALSE;
   }
 
   DLLEXPORT void __stdcall guFogGenerateExp(GrFog_t *fogTable, FxFloat density) {
-    Logger::debug(">>> guFogGenerateExp");
+    DEBUGLOG(">>> guFogGenerateExp");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -1037,7 +1113,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall guFogGenerateExp2(GrFog_t *fogTable, FxFloat density) {
-    Logger::debug(">>> guFogGenerateExp2");
+    DEBUGLOG(">>> guFogGenerateExp2");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -1046,7 +1122,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall guFogGenerateLinear(GrFog_t *fogTable, FxFloat nearZ, FxFloat farZ) {
-    Logger::debug(">>> guFogGenerateLinear");
+    DEBUGLOG(">>> guFogGenerateLinear");
 
     if (unlikely(glideDevice == nullptr))
       return;
@@ -1055,7 +1131,7 @@ extern "C" {
   }
 
   DLLEXPORT FxFloat __stdcall guFogTableIndexToW(FxI32 i) {
-    Logger::debug(">>> guFogTableIndexToW");
+    DEBUGLOG(">>> guFogTableIndexToW");
 
     if (unlikely(glideDevice == nullptr))
       return 0.0;
@@ -1064,11 +1140,29 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall guGammaCorrectionRGB(FxFloat red, FxFloat green, FxFloat blue) {
-    Logger::debug(">>> guGammaCorrectionRGB");
+    DEBUGLOG(">>> guGammaCorrectionRGB");
     if (unlikely(glideDevice == nullptr))
       return;
 
     glideDevice->SetGammaCorrection(red, green, blue);
+  }
+
+  DLLEXPORT GrProc __stdcall grGetProcAddress(char *procName) {
+    DEBUGLOG(">>> grGetProcAddress");
+
+    if (procName == nullptr)
+      return nullptr;
+    else if (strcmp(procName, "grChromaRangeExt"))
+      return reinterpret_cast<GrProc>(grChromaRangeExt);
+    else if (strcmp(procName, "grChromaRangeModeExt"))
+      return reinterpret_cast<GrProc>(grChromaRangeModeExt);
+    else if (strcmp(procName, "grTexChromaModeExt"))
+      return reinterpret_cast<GrProc>(grTexChromaModeExt);
+    else if (strcmp(procName, "grTexChromaRangeExt"))
+      return reinterpret_cast<GrProc>(grTexChromaRangeExt);
+
+    Logger::err(str::format("Unsupported extension: ", procName));
+    return nullptr;
   }
 
   BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {

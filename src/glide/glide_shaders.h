@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../dxvk/dxvk_shader.h"
 
 #include "glide_include.h"

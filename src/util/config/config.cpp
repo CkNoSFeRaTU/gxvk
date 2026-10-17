@@ -1228,7 +1228,6 @@ namespace dxvk {
      * (with the "Modern Patch")                  */
     { R"(\\nfs3\.exe$)", {{
       { "d3d8.batching",                    "True" },
-      { "glide.card",                    "voodoo2" },
     }} },
     /* Need for Speed: High Stakes / Road         *
      * Challenge (with the "Modern Patch") -      *
@@ -1431,6 +1430,11 @@ namespace dxvk {
     }} },
     { R"(\\UnrealTournament\.exe$)", {{
       { "glide.ignoreGammaCorrection",      "True" },
+    }} },
+    /* Need for Speed: Porsche Unleashed.         *
+       Has broken mipmaps                         */
+    { R"(\\(Porsche|nfs5)\.exe$)", {{
+      { "glide.autoGenMipMaps",             "True" },
     }} },
   };
 

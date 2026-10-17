@@ -1,4 +1,4 @@
-LIBRARY "glide"
+LIBRARY GLIDE.DLL
 
 EXPORTS
     _ConvertAndDownloadRle@64 = ConvertAndDownloadRle
@@ -57,7 +57,6 @@ EXPORTS
     _grLfbGetReadPtr@4 = grLfbGetReadPtr
     _grLfbGetWritePtr@4 = grLfbGetWritePtr
     _grLfbOrigin@4 = grLfbOrigin
-    _grLfbReadRegion@28 = grLfbReadRegion
     _grLfbWriteColorFormat@4 = grLfbWriteColorFormat
     _grLfbWriteColorSwizzle@8 = grLfbWriteColorSwizzle
     _grLfbWriteMode@4 = grLfbWriteMode

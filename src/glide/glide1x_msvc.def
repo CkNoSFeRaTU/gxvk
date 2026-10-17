@@ -1,4 +1,4 @@
-LIBRARY "glide"
+LIBRARY GLIDE.DLL
 
 EXPORTS
     _ConvertAndDownloadRle@64 = _ConvertAndDownloadRle@64

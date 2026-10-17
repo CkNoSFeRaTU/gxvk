@@ -39,12 +39,19 @@ namespace dxvk {
   VkCompareOp UtilCompareModeToVKCompareMode(GrCmpFnc_t fnc);
   VkCullModeFlags UtilCullModeVKCullModeFlags(GrCullMode_t mode);
   VkSamplerAddressMode UtilGlideClampToVKSamplerAddressMode(GrTextureClampMode_t mode);
+  std::string UtilColorFormatToString(GrColorFormat_t format);
   std::string UtilInternalFormatToString(GrIntFmt_t format);
   GrIntFmt_t UtilTexFormatToInternalFormat(GrTextureFormat_t format);
   GrTextureFormat_t UtilInternalFormatToTexFormat(GrIntFmt_t format);
+  GrLfbWriteMode_t UtilIFormatToLFBWriteMode(GrIntFmt_t format);
+  GrIntFmt_t UtilLFBSrcFormatToIFormat(GrLfbSrcFmt_t format);
   GrIntFmt_t UtilLFBWriteModeToIFormat(GrLfbWriteMode_t writeMode);
   VkPrimitiveTopology UtilVertexModeToTopology(glide3x::GrDrawVertexArrayMode_t mode);
-  FxBool UtilConvertRGBAToImage(GrIntFmt_t format, void *srcPtr, std::vector<uint8_t>& dstVector, FxU32& srcComponents, FxU32& srcPitch, FxU32 width, FxU32 height, const std::array<FxU32, VOODOO_PALETTE_TABLE_SIZE> *palette);
-  FxBool UtilConvertImageToRGBA(GrIntFmt_t format, void* srcPtr, std::vector<uint8_t>& dstVector, FxU32& dstComponents, FxU32& dstPitch, FxU32 width, FxU32 height, const std::array<FxU32, VOODOO_PALETTE_TABLE_SIZE> *palette);
+  GrColor_t UtilConvertColor(GrColorFormat_t format, FxFloat r, FxFloat g, FxFloat b, FxFloat a, FxBool isNormalized);
+  void UtilGetColorComponent(GrColorFormat_t format, GrColor_t color, FxFloat* r, FxFloat* g, FxFloat* b, FxFloat* a, FxBool needNormalized);
+  FxBool UtilClearImage(GrIntFmt_t format, GrColorFormat_t colorFormat, GrColor_t color, void* dstPtr, VkRect2D dimensions, VkRect2D region);
+  FxBool UtilConvertRGBAToImage(GrIntFmt_t format, const void *srcPtr, void *dstPtr, FxU32 width, FxU32 height);
+  FxBool UtilConvertImageToRGBA(GrIntFmt_t format, const void* srcPtr, void *dstPtr, FxU32& dstComponents, FxU32& dstPitch, FxU32 width, FxU32 height
+    , FxBool isPalette6666 = FXFALSE, const std::array<FxU32, VOODOO_PALETTE_TABLE_SIZE> *palette = nullptr, GrColorFormat_t *colorFormat = nullptr);
 
 }

@@ -128,6 +128,7 @@ namespace dxvk {
       VOODOO_NCC_TABLE_SIZE>, 2>      m_ncc = { };
     std::map<TMUAddress, TMUTexture>  m_regions = { };
 
+    FxBool                            m_palette6666set = FXFALSE;
     std::array<size_t, 3>             m_hashes = { };
   };
 }
