@@ -57,7 +57,6 @@ EXPORTS
     _grLfbGetReadPtr@4 = _grLfbGetReadPtr@4
     _grLfbGetWritePtr@4 = _grLfbGetWritePtr@4
     _grLfbOrigin@4 = _grLfbOrigin@4
-    _grLfbReadRegion@28 = _grLfbReadRegion@28
     _grLfbWriteColorFormat@4 = _grLfbWriteColorFormat@4
     _grLfbWriteColorSwizzle@8 = _grLfbWriteColorSwizzle@8
     _grLfbWriteMode@4 = _grLfbWriteMode@4
