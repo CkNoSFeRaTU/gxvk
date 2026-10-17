@@ -19,8 +19,7 @@ namespace dxvk {
     if (unlikely(metadata.data == nullptr))
       return FXFALSE;
 
-    GrIntFmt_t iformat = UtilTexFormatToInternalFormat(metadata.format);
-    Logger::debug(str::format("TMU ", m_id, " texture insert request ", UtilInternalFormatToString(iformat), " ", metadata.smallLodLog2, "/", metadata.largeLodLog2, "(", metadata.aspectRatioLog2, ")"));
+    DEBUGLOG(str::format("TMU ", m_id, " texture insert request ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", metadata.smallLodLog2, "/", metadata.largeLodLog2, "(", metadata.aspectRatioLog2, ")"));
 
     std::vector<GlideMipMapOffset> mipmaps = {};
     metadata.size = UtilGetTextureSize(metadata.smallLodLog2, metadata.largeLodLog2, metadata.aspectRatioLog2, metadata.format, metadata.evenOdd, true, &mipmaps);
@@ -44,9 +43,9 @@ namespace dxvk {
         it = m_regions.erase(it);
       }
 
-      Logger::debug(str::format("TMU ", m_id, " texture ", UtilInternalFormatToString(iformat), " ", mipmap.width, "x", mipmap.height, " copying at address ", subStartAddress, "-", subStopAddress));
+      DEBUGLOG(str::format("TMU ", m_id, " texture ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", mipmap.width, "x", mipmap.height, " copying at address ", subStartAddress, "-", subStopAddress));
       memcpy(m_buffer.get() + subStartAddress, metadata.data, mipmap.size);
-      Logger::debug(str::format("TMU ", m_id, " texture ", UtilInternalFormatToString(iformat), " ", mipmap.width, "x", mipmap.height, " has been uploaded at address ", subStartAddress, "-", subStopAddress));
+      DEBUGLOG(str::format("TMU ", m_id, " texture ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", mipmap.width, "x", mipmap.height, " has been uploaded at address ", subStartAddress, "-", subStopAddress));
     }
 
     return FXTRUE;
@@ -56,8 +55,7 @@ namespace dxvk {
     if (unlikely(metadata.data == nullptr))
       return FXFALSE;
 
-    GrIntFmt_t iformat = UtilTexFormatToInternalFormat(metadata.format);
-    Logger::debug(str::format("TMU ", m_id, " texture insert request ", UtilInternalFormatToString(iformat), " ", metadata.smallLodLog2, "/", metadata.largeLodLog2, "(", metadata.aspectRatioLog2, ")"));
+    DEBUGLOG(str::format("TMU ", m_id, " texture insert request ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", metadata.smallLodLog2, "/", metadata.largeLodLog2, "(", metadata.aspectRatioLog2, ")"));
 
     std::vector<GlideMipMapOffset> mipmaps = {};
     metadata.size = UtilGetTextureSize(metadata.smallLodLog2, metadata.largeLodLog2, metadata.aspectRatioLog2, metadata.format, metadata.evenOdd, true, &mipmaps);
@@ -85,20 +83,20 @@ namespace dxvk {
       it = m_regions.erase(it);
     }
 
-    if (end != 0 && start < end) {
-      end = std::min(end, mipmap.height);
+    if (unlikely(end != 0 && start < end)) {
+      end = std::min(end, mipmap.height - 1);
       start = std::min(start, end);
       subStartAddress += start * mipmap.width * ((mipmap.blockSize * mipmap.blockWidth) >> 3);
-      size_t updateSize = (end - start) * mipmap.width * ((mipmap.blockSize * mipmap.blockWidth) >> 3);
+      size_t updateSize = (end + 1 - start) * mipmap.width * ((mipmap.blockSize * mipmap.blockWidth) >> 3);
       subStopAddress = subStartAddress + updateSize;
-      Logger::debug(str::format("TMU ", m_id, " mipmap ", UtilInternalFormatToString(iformat), " ", mipmap.width, "x", mipmap.height, " copying at address ", subStartAddress, "-", subStopAddress));
+      DEBUGLOG(str::format("TMU ", m_id, " mipmap ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", mipmap.width, "x", mipmap.height, " copying at address ", subStartAddress, "-", subStopAddress));
       memcpy(m_buffer.get() + subStartAddress, metadata.data, updateSize);
     } else {
-      Logger::debug(str::format("TMU ", m_id, " mipmap ", UtilInternalFormatToString(iformat), " ", mipmap.width, "x", mipmap.height, " copying at address ", subStartAddress, "-", subStopAddress));
+      DEBUGLOG(str::format("TMU ", m_id, " mipmap ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", mipmap.width, "x", mipmap.height, " copying at address ", subStartAddress, "-", subStopAddress));
       memcpy(m_buffer.get() + subStartAddress, metadata.data, mipmap.size);
     }
 
-    Logger::debug(str::format("TMU ", m_id, " mipmap ", UtilInternalFormatToString(iformat), " ", mipmap.width, "x", mipmap.height, " has been uploaded at address ", subStartAddress, "-", subStopAddress));
+    DEBUGLOG(str::format("TMU ", m_id, " mipmap ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", mipmap.width, "x", mipmap.height, " has been uploaded at address ", subStartAddress, "-", subStopAddress));
 
     return FXTRUE;
   }
@@ -122,11 +120,39 @@ namespace dxvk {
   }
 
   FxBool GlideTMU::SetTable(GrTexTable_t type, void *data, FxU32 start = 0, FxU32 stop = 0) {
-    Logger::debug(str::format("TMU ", m_id, " table selection"));
+    DEBUGLOG(str::format("TMU ", m_id, " table selection"));
     if (unlikely(data == nullptr))
       return FXFALSE;
 
     switch (type) {
+      case GR_TEXTABLE_PALETTE_6666_EXT: {
+        start = std::clamp(start, 0U, VOODOO_PALETTE_TABLE_SIZE - 1);
+        stop = std::clamp(stop, 0U, VOODOO_PALETTE_TABLE_SIZE - 1);
+        if (start > stop)
+          return FXFALSE;
+        if (start == 0 && stop == 0)
+          stop = VOODOO_PALETTE_TABLE_SIZE - 1;
+
+        for (FxU32 i = start; i <= stop; ++i) {
+          FxU32 value = static_cast<FxU32*>(data)[i];
+
+          const FxU32 a = (value >> 18) & 0x3F;
+          const FxU32 r = (value >> 12) & 0x3F;
+          const FxU32 g = (value >>  6) & 0x3F;
+          const FxU32 b =  value        & 0x3F;
+
+          m_palette[i] = (((a << 2) | (b >> 4)) << 24)
+                       | (((r << 2) | (g >> 4)) << 16)
+                       | (((b << 2) | (r >> 4)) <<  8)
+                       |  ((g << 2) | (a >> 4));
+        }
+
+        m_hashes[0] = calculateHash(&m_palette);
+        m_palette6666set = FXTRUE;
+
+        DEBUGLOG(str::format("TMU ", m_id, " 6666 palette applied"));
+        return FXTRUE;
+      }
       case GR_TEXTABLE_PALETTE: {
         start = std::clamp(start, 0U, VOODOO_PALETTE_TABLE_SIZE - 1);
         stop = std::clamp(stop, 0U, VOODOO_PALETTE_TABLE_SIZE - 1);
@@ -138,8 +164,9 @@ namespace dxvk {
         FxU32 length = stop - start;
         memcpy(m_palette.data() + start * sizeof(FxU32), data, length * sizeof(FxU32));
         m_hashes[0] = calculateHash(&m_palette);
+        m_palette6666set = FXFALSE;
 
-        Logger::debug(str::format("TMU ", m_id, " palette applied"));
+        DEBUGLOG(str::format("TMU ", m_id, " palette applied"));
         return FXTRUE;
       }
       case GR_TEXTABLE_NCC0:
@@ -154,13 +181,13 @@ namespace dxvk {
           stop = VOODOO_NCC_TABLE_SIZE - 1;
 
         FxU32 length = stop - start;
-        memcpy(m_ncc[type == GR_TEXTABLE_NCC0 ? 0 : 1].data() + start, data, length);
-        m_hashes[GR_TEXTABLE_NCC0 ? 1 : 2] = calculateHash(&m_ncc[type == GR_TEXTABLE_NCC0 ? 0 : 1]);
+        auto &ncc = m_ncc[type == GR_TEXTABLE_NCC0 ? 0 : 1];
+        memcpy(ncc.data() + start, data, length);
+        m_hashes[GR_TEXTABLE_NCC0 ? 1 : 2] = calculateHash(&ncc);
 
-        Logger::debug(str::format("TMU ", m_id, " NCC applied"));
+        DEBUGLOG(str::format("TMU ", m_id, " NCC applied"));
         return FXTRUE;
       }
-      case GR_TEXTABLE_PALETTE_6666_EXT:
       default:
         Logger::err(str::format("TMU ", m_id, " unsupported table type ", type));
         break;
@@ -173,16 +200,15 @@ namespace dxvk {
     if (metadata.startAddress == GLIDE_NO_TEXTURE)
       return FXFALSE;
 
-    GrIntFmt_t iformat = UtilTexFormatToInternalFormat(metadata.format);
-
-    Logger::debug(str::format("TMU ", m_id, " upload to GPU request: ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", metadata.smallLodLog2, "/", metadata.largeLodLog2, "(", metadata.aspectRatioLog2, ")" ", address: ", metadata.startAddress));
+    DEBUGLOG(str::format("TMU ", m_id, " upload to GPU request: ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", metadata.smallLodLog2, "/", metadata.largeLodLog2, "(", metadata.aspectRatioLog2, ")" ", address: ", metadata.startAddress));
 
     std::vector<GlideMipMapOffset> mipmaps;
+    const bool hackNoMipMaps = m_parent->GetOptions()->hackNoMipMaps;
 
     size_t size = UtilGetTextureSize(metadata.smallLodLog2, metadata.largeLodLog2, metadata.aspectRatioLog2, metadata.format, metadata.evenOdd, true, &mipmaps);
     size_t endAddress = metadata.startAddress + size;
     if (!mipmaps.size()) {
-      Logger::debug(str::format("TMU ", m_id, " nothing to upload to GPU: ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", metadata.smallLodLog2, "/", metadata.largeLodLog2, "(", metadata.aspectRatioLog2, ")" ", address: ", metadata.startAddress));
+      DEBUGLOG(str::format("TMU ", m_id, " nothing to upload to GPU: ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", metadata.smallLodLog2, "/", metadata.largeLodLog2, "(", metadata.aspectRatioLog2, ")" ", address: ", metadata.startAddress));
       return FXFALSE;
     }
 
@@ -222,7 +248,7 @@ namespace dxvk {
       GLIDE_COMMON_TEXTURE_DESC desc;
       desc.Width              = mipmaps[0].width;
       desc.Height             = mipmaps[0].height;
-      desc.MipMaps            = mipmaps.size();
+      desc.MipMaps            = hackNoMipMaps ? 1 : mipmaps.size();
       desc.Format             = VK_FORMAT_R8G8B8A8_UNORM;
       desc.Type               = GR_BUFFER_NONE;
       t.texture = new GlideCommonTexture(m_parent, &desc);
@@ -238,8 +264,8 @@ namespace dxvk {
 
     if (tmuTexture.texture && tmuTexture.upToDate) {
       FxBool skip = true;
-      if (metadata.format == GR_TEXFMT_P_8 || metadata.format == GR_TEXFMT_P_8_6666 ||
-        metadata.format == GR_TEXFMT_P_8_6666_EXT || metadata.format == GR_TEXFMT_AP_88) {
+      if (metadata.format == GR_TEXFMT_P_8 || metadata.format == GR_TEXFMT_AP_88
+        || metadata.format == GR_TEXFMT_P_8_6666 || metadata.format == GR_TEXFMT_P_8_6666_EXT) {
         skip = tmuTexture.hash == m_hashes[0];
       } else if (metadata.format == GR_TEXFMT_YIQ_422) {
         skip = tmuTexture.hash == m_hashes[1];
@@ -248,7 +274,7 @@ namespace dxvk {
       }
 
       if (likely(skip)) {
-        Logger::debug(str::format("TMU ", m_id, " skip upload to GPU: ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", metadata.smallLodLog2, "/", metadata.largeLodLog2, "(", metadata.aspectRatioLog2, ")" ", address: ", metadata.startAddress));
+        DEBUGLOG(str::format("TMU ", m_id, " skip upload to GPU: ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", metadata.smallLodLog2, "/", metadata.largeLodLog2, "(", metadata.aspectRatioLog2, ")" ", address: ", metadata.startAddress));
         return FXTRUE;
       }
     }
@@ -260,7 +286,7 @@ namespace dxvk {
       if (unlikely(subStopAddress >= GetMaximumAddress()))
         return FXFALSE;
 
-      Logger::debug(str::format("TMU ", m_id, " upload to GPU request mipmap: ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", mipmap.width, "x", mipmap.height, " address: ", subStartAddress, "-", subStopAddress));
+      DEBUGLOG(str::format("TMU ", m_id, " mipmap upload to GPU request: ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", mipmap.width, "x", mipmap.height, " address: ", subStartAddress, "-", subStopAddress));
 
       metadata.data = m_buffer.get() + metadata.startAddress + mipmap.offset;
 
@@ -287,7 +313,7 @@ namespace dxvk {
       std::vector<uint8_t> pixelData;
       pixelData.resize(bufferSize);
 
-      UtilConvertImageToRGBA(UtilTexFormatToInternalFormat(metadata.format), metadata.data, pixelData, components, dstPitch, mipmap.width, mipmap.height, &m_palette);
+      UtilConvertImageToRGBA(UtilTexFormatToInternalFormat(metadata.format), metadata.data, pixelData.data(), components, dstPitch, mipmap.width, mipmap.height, m_palette6666set, &m_palette);
       VkDeviceSize pitch = align(dstPitch, components);
 
       auto slice = m_parent->GetStagingBuffer()->alloc(bufferSize);
@@ -310,8 +336,8 @@ namespace dxvk {
           0, 0, cColorFormat);
       });
 
-      if (metadata.format == GR_TEXFMT_P_8 || metadata.format == GR_TEXFMT_P_8_6666 ||
-          metadata.format == GR_TEXFMT_P_8_6666_EXT || metadata.format == GR_TEXFMT_AP_88) {
+      if (metadata.format == GR_TEXFMT_P_8 || metadata.format == GR_TEXFMT_AP_88 
+        || metadata.format == GR_TEXFMT_P_8_6666 || metadata.format == GR_TEXFMT_P_8_6666_EXT) {
         tmuTexture.hash = calculateHash(&m_palette);
       } else if (metadata.format == GR_TEXFMT_YIQ_422) {
         tmuTexture.hash = calculateHash(&m_ncc[0]);
@@ -320,7 +346,18 @@ namespace dxvk {
       }
 
       tmuTexture.upToDate = true;
-      Logger::debug(str::format("TMU ", m_id, " mipmap ", UtilInternalFormatToString(iformat), " ", mipmap.width, "x", mipmap.height, " has been uploaded to GPU at address ", subStartAddress, "-", subStopAddress, ", hash: ", tmuTexture.hash));
+      DEBUGLOG(str::format("TMU ", m_id, " mipmap ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", mipmap.width, "x", mipmap.height, " has been uploaded to GPU at address ", subStartAddress, "-", subStopAddress, ", hash: ", tmuTexture.hash));
+
+      if (unlikely(hackNoMipMaps)) {
+        break;
+      } else if (unlikely(m_parent->GetOptions()->autoGenMipMaps)) {
+        m_parent->EmitCs([
+          cImageView = tmuTexture.texture->GetView(0)
+        ] (DxvkContext* ctx) {
+          ctx->generateMipmaps(cImageView, VK_FILTER_NEAREST);
+        });
+        break;
+      }
     }
 
     return FXTRUE;

@@ -56,7 +56,7 @@ In order to remove GXVK just remove previously copied DLLs.
 Listed below are the DLL requirements for using GXVK with any single API.
 
 - Glide v2.00 - v2.11: `glide.dll`
-- Glide v2.20 - v2.60: `glide2x.dll`
+- Glide v2.30 - v2.60: `glide2x.dll`
 - Glide v3.00 - v3.10: `glide3x.dll`
 
 ### HUD

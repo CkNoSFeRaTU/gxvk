@@ -26,6 +26,12 @@
 
 namespace dxvk {
 
+#ifdef DEBUGBUILD
+#define DEBUGLOG(msg) Logger::debug(msg);
+#else
+#define DEBUGLOG(msg) {}
+#endif
+
 struct GlideBoardConfiguration {
   std::string name;
   GrSstType type;

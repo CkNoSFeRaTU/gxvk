@@ -2,6 +2,7 @@
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_scalar_block_layout : require
 #extension GL_EXT_spirv_intrinsics : require
+#extension GL_EXT_shader_explicit_arithmetic_types : enable
 
 #include "glide_fixed_function_common.glsl"
 
@@ -29,23 +30,11 @@ layout(location = 3) out vec4 out_Color;
 layout(location = 4) out float out_Z;
 layout(location = 5) out float out_W;
 layout(location = 6) out float out_Q;
-
-struct GlideFixedFunctionVS {
-    uint padding;
-};
-
-layout(set = CBV_SET, binding = CBV_VS_FIXED_FUNCTION, scalar, row_major)
-uniform ShaderData {
-    GlideFixedFunctionVS data;
-};
+layout(location = 7) out float out_FOGEXT;
 
 layout(push_constant, scalar, row_major)
 uniform RenderStates {
     GlideSharedPushData global;
-
-    layout(offset = MaxSharedPushDataSize)
-    GlideVsPushData vs;
-    GlideFfvsPushData ffvs;
 };
 
 bool vertexHasQ0() {
@@ -92,7 +81,7 @@ bool glide3x() {
   return bitfieldExtract(global.flags, 31, 1) != 0;
 }
 
-vec3 selectSTW(uint tmu) {
+vec3 selectSTW(uint tmu, float W) {
   vec2 st;
   float q;
 
@@ -102,7 +91,7 @@ vec3 selectSTW(uint tmu) {
     if (vertexHasQ0())
       q = in_Q0;
     else
-      q = in_Q;
+      q = W;
   } else if (tmu == 1 ) {
     if (vertexHasST1())
       st = in_ST1;
@@ -114,7 +103,7 @@ vec3 selectSTW(uint tmu) {
     else if (vertexHasQ0())
       q = in_Q0;
     else
-      q = in_Q;
+      q = W;
   } else {
     if (vertexHasST2())
       st = in_ST2;
@@ -130,7 +119,7 @@ vec3 selectSTW(uint tmu) {
     else if (vertexHasQ0())
       q = in_Q0;
     else
-      q = in_Q;
+      q = W;
   }
 
   return vec3(st, q);
@@ -157,17 +146,18 @@ void main() {
     gl_Position = transformVertex();
     gl_PointSize = 1.0;
 
-    out_STQ0 = selectSTW(0);
-    out_STQ1 = selectSTW(1);
-    out_STQ2 = selectSTW(2);
     out_Z = vertexHasZ() && !isinf(in_Z) && !isnan(in_Z) ? in_Z : 0.0;
-    out_W = vertexHasW() && !isinf(in_W) && !isnan(in_W) ? in_W : 0.0;
-    out_Q = vertexHasQ() && !isinf(in_Q) && !isnan(in_Q) ? in_Q : 0.0;
+    out_Q = vertexHasQ() && !isinf(in_Q) && !isnan(in_Q) ? in_Q : 1.0;
+    out_W = vertexHasW() && !isinf(in_W) && !isnan(in_W) ? (glide3x() ? 1.0 / in_W : in_W) : out_Q;
+    out_STQ0 = selectSTW(0, out_W);
+    out_STQ1 = selectSTW(1, out_W);
+    out_STQ2 = selectSTW(2, out_W);
+    out_FOGEXT = in_FOGEXT;
 
-    out_Color = vec4(1.0);
+    out_Color = vec4(0.0);
     if (vertexHasRGB() && !(any(isnan(in_RGB))) && !(isnan(in_A))) {
       out_Color = vec4(in_RGB / GLIDE_COLOR_MAX, in_A / GLIDE_COLOR_MAX);
-    } else if (!any(isnan(in_PARGB))) {
+    } else if (!any(isnan(vec4(in_PARGB)))) {
       out_Color = swizzleColor(GR_COLORFORMAT_BGRA, in_PARGB) / GLIDE_COLOR_MAX;
     }
 

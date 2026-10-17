@@ -7,6 +7,7 @@
 #include <bitset>
 #include <optional>
 
+#include "../dxvk/dxvk_shader.h"
 #include "../util/util_vector.h"
 
 namespace dxvk {
@@ -15,8 +16,7 @@ namespace dxvk {
     glide3x::GrDrawVertexArrayMode_t mode;
   };
 
-  static constexpr uint32_t SamplerStateCount = 13 + 1;
-  static constexpr uint32_t SamplerCount      = GLIDE_MAX_TEXTURESTAGES * 2 + 1;
+  static constexpr uint32_t SamplerCount      = GLIDE_MAX_TEXTURESTAGES * 2;
   static constexpr uint32_t FirstVSSamplerSlot = GLIDE_MAX_TEXTURESTAGES + 1;
   constexpr bool IsVSSampler(uint32_t Sampler) {
     return Sampler >= FirstVSSamplerSlot;
@@ -28,33 +28,20 @@ namespace dxvk {
   }
 
   enum CbvIndex : uint32_t {
-    VSClipPlanes            = 0u,
-    VSFixedFunction         = 1u,
-    VSVertexBlendData       = 2u,
-    VSStaticConstants       = 3u,
-    VSDynamicConstants      = 4u,
-    PSShared                = 5u,
-    PSStaticConstants       = 6u,
+    VSStaticConstants       = 0u,
+    VSDynamicConstants      = 1u,
+    PSShared                = 2u,
+    PSStaticConstants       = 3u,
 
     Count
   };
 
-  struct GlideFixedFunctionVS {
-    uint32_t padding = 0u;
-  };
-
-  struct GlideVsPushData {
-    static constexpr VkShaderStageFlags Stages = VK_SHADER_STAGE_VERTEX_BIT;
-    static constexpr uint32_t           Offset = 0u;
-
-    uint32_t padding = 0u;
-  };
-
-  struct GlideFfvsPushData {
-    static constexpr VkShaderStageFlags Stages = VK_SHADER_STAGE_VERTEX_BIT;
-    static constexpr uint32_t           Offset = sizeof(GlideVsPushData);
-
-    uint32_t padding = 0u;
+  struct GlideSharedPS {
+    uint8_t fogTable[FOG_TABLE_ENTRIES_COUNT] = {};
+    FxFloat fogIndexToW[FOG_TABLE_ENTRIES_COUNT] = {};
+    struct Stage {
+      uint32_t combinerTMU = {};
+    } Stages[GLIDE_MAX_TEXTURESTAGES];
   };
 
   struct GlideFfpsPushData {
@@ -64,24 +51,18 @@ namespace dxvk {
     uint32_t flags = 0u;
     uint32_t chromaKeyLow = 0u;
     uint32_t chromaKeyHigh = 0u;
-    uint32_t alphaTestFunction = 0u;
-    uint32_t alphaTestReference = 0u;
+    uint32_t alphaTest = 0u;
 
     int32_t aspectRatioLog2[3] = { };
-    uint32_t combinerTMU[GLIDE_MAX_TEXTURESTAGES] = {};
-    uint32_t combinerPixelFx = 0u;
-
-    uint32_t fogMode = 0u;
-    uint32_t fogColor = 0u;
-    uint32_t fogTable[4] = {};
-    float depth[2] = {0.0f, 0.0f};
-    float gammaCorrection[3] = {0.0f, 0.0f, 0.0f};
-
-    uint32_t stipple = 0u;
     uint32_t constantColor = 0u;
 
-    uint32_t depthMode = 0u;
-    uint32_t ditherMode = 0u;
+    uint32_t delta0Color = 0u;
+    uint32_t fogColor = 0u;
+    uint32_t stipplePattern = 0u;
+    uint32_t combinerPixelFx = 0u;
+
+    float depth[2] = {0.0f, 0.0f};
+    float gammaCorrection[3] = {0.0f, 0.0f, 0.0f};
   };
 
   struct GlideSharedPushData {
@@ -100,13 +81,12 @@ namespace dxvk {
 
   struct GlidePushData {
     GlideSharedPushData shared;
-    GlideVsPushData vs;
-    GlideFfvsPushData ffvs;
     GlideFfpsPushData ffps;
   };
 
   struct GlideSpecData {
     uint32_t chromaMode = 0u;
+    uint32_t fogMode = 0u;
   };
 
 }

@@ -28,6 +28,7 @@ namespace dxvk {
     FxU32 RefreshRate;
     FxU32 BufferCount;
     FxU32 AuxBufferCount;
+    FxU32 SpecialCount;
     GrColorFormat_t ColorFormat;
   };
 
@@ -83,6 +84,7 @@ namespace dxvk {
     VkColorSpaceKHR           m_colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
     small_vector<Rc<GlideCommonTexture>, GLIDE_MAX_SWAP_CHAIN_BUFFERS> m_backBuffers;
     small_vector<Rc<GlideCommonTexture>, GLIDE_MAX_AUX_BUFFERS> m_auxBuffers;
+    small_vector<Rc<GlideCommonTexture>, 1>                     m_miscBuffers;
 
     Rc<DxvkSwapchainBlitter>  m_blitter;
     Rc<DxvkLatencyTracker>    m_latencyTracker;

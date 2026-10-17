@@ -16,39 +16,14 @@ namespace dxvk {
   }
 
   Rc<DxvkShader> GlideShaderModuleSet::buildVs() {
-    small_vector<DxvkBindingInfo, 1> bindings = {};
-
-    auto& fixedFunctionDataBinding = bindings.emplace_back();
-    fixedFunctionDataBinding.set             = CbvSet;
-    fixedFunctionDataBinding.binding         = CbvIndex::VSFixedFunction;
-    fixedFunctionDataBinding.resourceIndex   = CbvIndex::VSFixedFunction;
-    fixedFunctionDataBinding.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    fixedFunctionDataBinding.access          = VK_ACCESS_UNIFORM_READ_BIT;
-    fixedFunctionDataBinding.flags.set(DxvkDescriptorFlag::UniformBuffer);
-
-    auto& vertexBlendBinding = bindings.emplace_back();
-    vertexBlendBinding.set             = CbvSet;
-    vertexBlendBinding.binding         = CbvIndex::VSVertexBlendData;
-    vertexBlendBinding.resourceIndex   = CbvIndex::VSVertexBlendData;
-    vertexBlendBinding.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    vertexBlendBinding.access          = VK_ACCESS_SHADER_READ_BIT;
-    vertexBlendBinding.flags.set(DxvkDescriptorFlag::UniformBuffer);
-
-    auto& clipPlanesBinding = bindings.emplace_back();
-    clipPlanesBinding.set             = CbvSet;
-    clipPlanesBinding.binding         = CbvIndex::VSClipPlanes;
-    clipPlanesBinding.resourceIndex   = CbvIndex::VSClipPlanes;
-    clipPlanesBinding.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    clipPlanesBinding.access          = VK_ACCESS_UNIFORM_READ_BIT;
-    clipPlanesBinding.flags.set(DxvkDescriptorFlag::UniformBuffer);
+    small_vector<DxvkBindingInfo, 0> bindings = {};
 
     DxvkSpirvShaderCreateInfo info;
     info.bindingCount = bindings.size();
     info.bindings = bindings.data();
     info.flatShadingInputs = 0;
     info.sharedPushData = DxvkPushDataBlock(0u, sizeof(GlideSharedPushData), 4u, 0u);
-    info.localPushData = DxvkPushDataBlock(VK_SHADER_STAGE_VERTEX_BIT, MaxSharedPushDataSize,
-      GlideFfvsPushData::Offset + sizeof(GlideFfvsPushData), 4u, 0u);
+    info.localPushData = DxvkPushDataBlock(VK_SHADER_STAGE_VERTEX_BIT, MaxSharedPushDataSize, 0u, 4u, 0u);
     info.samplerHeap = DxvkShaderBinding();
     info.specDataBuffer = DxvkShaderBinding(VK_SHADER_STAGE_VERTEX_BIT, SpecDataSet, 0u);
     info.debugName = "FF VS";

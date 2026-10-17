@@ -5,6 +5,7 @@
 #extension GL_ARB_derivative_control : require
 #extension GL_EXT_control_flow_attributes : require
 #extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_shader_explicit_arithmetic_types : enable
 
 #include "glide_fixed_function_common.glsl"
 
@@ -15,14 +16,17 @@ layout(location = 3) in vec4 in_Color;
 layout(location = 4) in float in_Z;
 layout(location = 5) in float in_W;
 layout(location = 6) in float in_Q;
+layout(location = 7) in float in_FOGEXT;
 
 layout(location = 0) out vec4 out_Color;
 
 struct GlideSharedPSStage {
-    uint padding;
+  uint combinerTMU;
 };
 
 struct GlideSharedPS {
+    uint8_t fogTable[FogTableSize];
+    float fogIndexToW[FogTableSize];
     GlideSharedPSStage Stages[TextureStageCount];
 };
 
@@ -90,9 +94,23 @@ layout(set = SAMPLER_SET, binding = 0) uniform sampler sampler_heap[];
 #define GR_ALPHASOURCE_TEXTURE_ALPHA 0x02
 #define GR_ALPHASOURCE_TEXTURE_ALPHA_TIMES_ITERATED_ALPHA 0x03
 
+#define GR_FOG_DISABLE 0x00
+#define GR_FOG_WITH_ITERATED_ALPHA 0x01 // glide2x
+#define GR_FOG_WITH_TABLE_ON_FOGCOORD_EXT 0x01 // glide3x
+#define GR_FOG_WITH_TABLE 0x02
+#define GR_FOG_WITH_ITERATED_Z 0x03
+#define GR_FOG_WITH_ITERATED_ALPHA_EXT 0x04 // glide3x
+#define GR_FOG_MODE_MASK 0x07
+#define GR_FOG_MULT2 0x100
+#define GR_FOG_ADD2 0x200
+
 uint loadSamplerHeapIndex(uint samplerBindingIndex) {
   uint packedSamplerIndex = packedSamplerIndices[samplerBindingIndex / 2u];
   return bitfieldExtract(packedSamplerIndex, 16 * (int(samplerBindingIndex) & 1), 16);
+}
+
+bool glide3x() {
+  return bitfieldExtract(global.flags, 31, 1) != 0;
 }
 
 bool getAlphaLighting() {
@@ -105,6 +123,10 @@ bool getColorMask() {
 
 bool getAlphaMask() {
   return bitfieldExtract(ffps.flags, 2, 1) != 0;
+}
+
+bool getDelta0Mode() {
+  return bitfieldExtract(ffps.flags, 3, 1) != 0;
 }
 
 uint getAlphaFunctionTMU(uint combinerTMU) {
@@ -171,12 +193,20 @@ bool getColorInvert() {
   return bitfieldExtract(ffps.combinerPixelFx, 25, 1) != 0;
 }
 
-uint getStippleMode() {
-  return bitfieldExtract(ffps.stipple, 8, 16);
+uint getDepthMode() {
+  return bitfieldExtract(ffps.combinerPixelFx, 26, 3);
 }
 
-uint getStipplePattern() {
-  return bitfieldExtract(ffps.stipple, 0, 8);
+uint getStippleMode() {
+  return bitfieldExtract(ffps.combinerPixelFx, 29, 2);
+}
+
+uint getAlphaTestFunction() {
+  return bitfieldExtract(ffps.alphaTest, 0, 7);
+}
+
+float getAlphaTestReference() {
+  return bitfieldExtract(ffps.alphaTest, 7, 8);
 }
 
 vec2 transformTexCoord(vec3 stq, float a) {
@@ -289,12 +319,12 @@ vec3 opColorFunction(uint operation, vec3 factorColor, vec3 localColor, vec3 oth
 }
 
 vec4 combinerTMU(uint stage, vec4 localInput, vec4 otherInput) {
-  const uint factorColor = getColorFactorTMU(ffps.combinerTMU[stage]);
-  const uint factorAlpha = getAlphaFactorTMU(ffps.combinerTMU[stage]);
-  const uint functionColor = getColorFunctionTMU(ffps.combinerTMU[stage]);
-  const uint functionAlpha = getAlphaFunctionTMU(ffps.combinerTMU[stage]);
-  const bool invertColor = getColorInvertTMU(ffps.combinerTMU[stage]);
-  const bool invertAlpha = getAlphaInvertTMU(ffps.combinerTMU[stage]);
+  const uint factorColor = getColorFactorTMU(sharedData.Stages[stage].combinerTMU);
+  const uint factorAlpha = getAlphaFactorTMU(sharedData.Stages[stage].combinerTMU);
+  const uint functionColor = getColorFunctionTMU(sharedData.Stages[stage].combinerTMU);
+  const uint functionAlpha = getAlphaFunctionTMU(sharedData.Stages[stage].combinerTMU);
+  const bool invertColor = getColorInvertTMU(sharedData.Stages[stage].combinerTMU);
+  const bool invertAlpha = getAlphaInvertTMU(sharedData.Stages[stage].combinerTMU);
 
   vec4 result = vec4(0.0);
 
@@ -313,25 +343,45 @@ vec4 combinerTMU(uint stage, vec4 localInput, vec4 otherInput) {
   return result;
 }
 
-vec4 combinerPixelFx(vec4 vertColor, vec4 texColor) {
+void chromaTestColor(uint colorFormat, vec3 color) {
+  if (chromaMode == GR_CHROMAKEY_ENABLE) {
+    vec4 lkey = decodeColor(colorFormat, ffps.chromaKeyLow);
+    vec4 hkey = decodeColor(colorFormat, ffps.chromaKeyHigh);
+    if (getColorMask() && all(greaterThanEqual(color, lkey.rgb)) && all(lessThanEqual(color, hkey.rgb)))
+      demote;
+  }
+}
+
+void chromaTestAlpha(uint colorFormat, float alpha) {
+  if (chromaMode == GR_CHROMAKEY_ENABLE) {
+    vec4 lkey = decodeColor(colorFormat, ffps.chromaKeyLow);
+    vec4 hkey = decodeColor(colorFormat, ffps.chromaKeyHigh);
+    if (getAlphaMask() && alpha >= lkey.a && alpha <= hkey.a)
+      demote;
+  }
+}
+
+vec4 combinerPixelFx(uint colorFormat, vec4 vertColor, vec4 texColor) {
   vec4 result = vec4(0.0);
-  vec4 constantColor = decodeColor(getColorFormat(global.flags), ffps.constantColor);
+  vec4 constantColor = decodeColor(colorFormat, ffps.constantColor);
 
   float localAlpha = 0.0;
-  uint curAlphaLocal = getAlphaLocal();
+  const uint curAlphaLocal = getAlphaLocal();
   if (curAlphaLocal == GR_COMBINE_LOCAL_ITERATED)
     localAlpha = vertColor.a;
   else if (curAlphaLocal == GR_COMBINE_LOCAL_CONSTANT)
     localAlpha = constantColor.a;
 
   float otherAlpha = 0.0;
-  uint curAlphaOther = getAlphaOther();
+  const uint curAlphaOther = getAlphaOther();
   if (curAlphaOther == GR_COMBINE_OTHER_ITERATED)
     otherAlpha = vertColor.a;
   else if (curAlphaOther == GR_COMBINE_OTHER_TEXTURE)
     otherAlpha = texColor.a;
   else if (curAlphaOther == GR_COMBINE_OTHER_CONSTANT)
     otherAlpha = constantColor.a;
+
+  chromaTestAlpha(colorFormat, otherAlpha);
 
   float factorAlpha = opAlphaFactor(getAlphaFactor(), localAlpha, otherAlpha, texColor);
   result.a = opAlphaFunction(getAlphaFunction(), factorAlpha, localAlpha, otherAlpha);
@@ -340,24 +390,32 @@ vec4 combinerPixelFx(vec4 vertColor, vec4 texColor) {
 
   vec3 localColor = vec3(0.0);
   if (getAlphaLighting()) {
-    localColor = texColor.a >= 0.5f ? constantColor.rgb : vertColor.rgb;
+    if (texColor.a >= 0.5) {
+      localColor = constantColor.rgb;
+    } else {
+      localColor = vertColor.rgb;
+    }
   } else {
-    uint curColorLocal = getColorLocal();
+    const uint curColorLocal = getColorLocal();
     if (curColorLocal == GR_COMBINE_LOCAL_ITERATED)
       localColor = vertColor.rgb;
     else if (curColorLocal == GR_COMBINE_LOCAL_CONSTANT)
       localColor = constantColor.rgb;
-    // else if (curColorLocal == GR_COMBINE_LOCAL_DEPTH)
+    else if (curColorLocal == GR_COMBINE_LOCAL_DEPTH) {
+      localColor = vec3(clamp(floor(in_Z / 256.0) / 255.0, 0.0, 1.0));
+    }
   }
 
   vec3 otherColor = vec3(0.0);
-  uint curColorOther = getColorOther();
+  const uint curColorOther = getColorOther();
   if (curColorOther == GR_COMBINE_OTHER_ITERATED)
     otherColor = vertColor.rgb;
   else if (curColorOther == GR_COMBINE_OTHER_TEXTURE)
     otherColor = texColor.rgb;
   else if (curColorOther == GR_COMBINE_OTHER_CONSTANT)
     otherColor = constantColor.rgb;
+
+  chromaTestColor(colorFormat, otherColor);
 
   vec3 factorColor = opColorFactor(getColorFactor(), localColor, localAlpha, otherAlpha, texColor);
   result.rgb = opColorFunction(getColorFunction(), factorColor, localColor, otherColor, localAlpha);
@@ -371,61 +429,101 @@ void alphaTest(float alpha) {
   // set passed for GR_CMP_ALWAYS there and skip check
   bool passed = true;
 
-  float alphaReference = ffps.alphaTestReference / GLIDE_COLOR_MAX;
-  if (ffps.alphaTestFunction == GR_CMP_NEVER)
+  const float alphaReference = getAlphaTestReference() / GLIDE_COLOR_MAX;
+  const uint alphaTestFunction = getAlphaTestFunction();
+  if (alphaTestFunction == GR_CMP_NEVER)
     passed = false;
-  else if (ffps.alphaTestFunction == GR_CMP_LESS)
+  else if (alphaTestFunction == GR_CMP_LESS)
     passed = alpha < alphaReference;
-  else if (ffps.alphaTestFunction == GR_CMP_EQUAL)
+  else if (alphaTestFunction == GR_CMP_EQUAL)
     passed = alpha == alphaReference;
-  else if (ffps.alphaTestFunction == GR_CMP_LEQUAL)
+  else if (alphaTestFunction == GR_CMP_LEQUAL)
     passed = alpha <= alphaReference;
-  else if (ffps.alphaTestFunction == GR_CMP_GREATER)
+  else if (alphaTestFunction == GR_CMP_GREATER)
     passed = alpha > alphaReference;
-  else if (ffps.alphaTestFunction == GR_CMP_NOTEQUAL)
+  else if (alphaTestFunction == GR_CMP_NOTEQUAL)
     passed = alpha != alphaReference;
-  else if (ffps.alphaTestFunction == GR_CMP_GEQUAL)
+  else if (alphaTestFunction == GR_CMP_GEQUAL)
     passed = alpha >= alphaReference;
 
   if (!passed)
     discard;
 }
 
-void chromaTest(vec4 textureColor) {
-  if (chromaMode == GR_CHROMAKEY_ENABLE) {
-    vec4 src = textureColor;
-    vec4 lkey = decodeColor(getColorFormat(global.flags), ffps.chromaKeyLow);
-    vec4 hkey = decodeColor(getColorFormat(global.flags), ffps.chromaKeyHigh);
-    bool passed = true;
-    if (!getColorMask() && (src.a >= lkey.a && src.a <= hkey.a))
-      passed = false;
-    else if (!getAlphaMask() && all(greaterThanEqual(src.rgb, lkey.rgb)) && all(lessThanEqual(src.rgb, hkey.rgb)))
-      passed = false;
-    else if (all(greaterThanEqual(src, lkey)) && all(lessThanEqual(src, hkey)))
-      passed = false;
+vec4 applyFog(uint colorFormat, vec4 vertColor, vec4 localColor) {
+  uint mode = fogMode & GR_FOG_MODE_MASK;
 
-    if (!passed)
-      discard;
+  if (mode == GR_FOG_DISABLE)
+    return localColor;
+
+  vec3 fogColor = decodeColor(colorFormat, ffps.fogColor).rgb;
+  float factorFog = 0.0;
+  if ((!glide3x() && mode == GR_FOG_WITH_ITERATED_ALPHA) || (glide3x() && fogMode == GR_FOG_WITH_ITERATED_ALPHA_EXT)) {
+    factorFog = vertColor.a;
+  } else if (mode == GR_FOG_WITH_ITERATED_Z) {
+    factorFog = clamp(in_Z / (ffps.depth.x - ffps.depth.y), 0.0, 1.0);
+  } else {
+    uint idx = 0;
+    float W = 1.0 / in_W;
+    if (glide3x() && mode == GR_FOG_WITH_TABLE_ON_FOGCOORD_EXT) {
+      idx = uint(in_FOGEXT);
+    } else {
+      for (idx = 0; idx < FogTableSize; idx++) {
+        if (sharedData.fogIndexToW[idx + 1] >= W)
+          break;
+      }
+    }
+
+    idx = min(idx, 62);
+
+    const float itoWC = sharedData.fogIndexToW[idx];
+    const float itoWN = sharedData.fogIndexToW[idx + 1];
+    const float fogC = sharedData.fogTable[idx];
+    const float fogN = sharedData.fogTable[idx + 1];
+
+    float value = 0.0;
+    if (itoWN > itoWC)
+      value = (W - itoWC) / (itoWN - itoWC);
+
+    value = clamp(value, 0.0, 1.0);
+    factorFog = clamp(mix(fogC, fogN, value) / 255.0, 0.0, 1.0);
+
+    if ((fogMode & GR_FOG_MULT2) != 0u) {
+      return vec4(clamp(factorFog * fogColor.rgb, 0.0, 1.0), localColor.a);
+    }
+
+    if ((fogMode & GR_FOG_ADD2) != 0u) {
+      return vec4(clamp((1 - factorFog) * localColor.rgb, 0.0, 1.0), localColor.a);
+    }
   }
+
+  return vec4(clamp(factorFog * fogColor.rgb + (1 - factorFog) * localColor.rgb, 0.0, 1.0), localColor.a);
 }
 
 void main() {
-  vec4 textureColor = in_Color;
+  vec4 vertexColor = in_Color;
+  const uint colorFormat = getColorFormat(global.flags);
+
+  if (getDelta0Mode()) {
+    vertexColor = decodeColor(colorFormat, ffps.delta0Color);
+  }
+
+  vec4 textureColor = vertexColor;
   textureColor = combinerTMU(2, sampleTexture(2), textureColor);
   textureColor = combinerTMU(1, sampleTexture(1), textureColor);
   textureColor = combinerTMU(0, sampleTexture(0), textureColor);
 
-  vec4 resultColor = combinerPixelFx(in_Color, textureColor);
+  vec4 resultColor = combinerPixelFx(colorFormat, vertexColor, textureColor);
 
-  if (ffps.depthMode == GR_DEPTHBUFFER_WBUFFER || ffps.depthMode == GR_DEPTHBUFFER_WBUFFER_COMPARE_TO_BIAS) {
-    float w = 1.0 / in_Q; // gl_FragCoord.w;
-    gl_FragDepth = clamp((w - ffps.depth.y) / (ffps.depth.x - ffps.depth.y), 0.0, 1.0);
-  } else {
+  alphaTest(resultColor.a);
+  resultColor = applyFog(colorFormat, vertexColor, resultColor);
+
+  const uint depthMode = getDepthMode();
+  if (depthMode == GR_DEPTHBUFFER_WBUFFER || depthMode == GR_DEPTHBUFFER_WBUFFER_COMPARE_TO_BIAS) {
+    gl_FragDepth = clamp((1.0 / in_W - ffps.depth.y) / (ffps.depth.x - ffps.depth.y), 0.0, 1.0);
+  } else if (depthMode == GR_DEPTHBUFFER_ZBUFFER || depthMode == GR_DEPTHBUFFER_ZBUFFER_COMPARE_TO_BIAS) {
     gl_FragDepth = clamp(in_Z / (ffps.depth.x - ffps.depth.y), 0.0, 1.0);
   }
-
-  chromaTest(textureColor);
-  alphaTest(resultColor.a);
 
   if (!getIgnoreGammaCorrection(global.flags) && all(greaterThan(ffps.gammaCorrection, vec3(0.0))) && !all(equal(ffps.gammaCorrection, vec3(1.0)))) {
     resultColor.rgb = pow(resultColor.rgb, 1.0 / ffps.gammaCorrection);

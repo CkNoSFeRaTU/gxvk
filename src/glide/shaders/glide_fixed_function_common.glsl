@@ -1,7 +1,7 @@
 const uint TextureStageCount = 3;
 const uint MaxSharedPushDataSize = 32;
+const uint FogTableSize = 64;
 
-// 3Dfx uses 786432.875 but we have explosions as Unreal games send 786432.0 - 786432.50
 const float GLIDE_FPBIAS = 786432.0;
 const float GLIDE_TEXCOORD = 256.0;
 const float GLIDE_COLOR_MAX = 255.0;
@@ -43,36 +43,23 @@ const float GLIDE_COLOR_MAX = 255.0;
 #define GR_GXVK_Q 0x100
 #define GR_GXVK_GLIDE3X 0x80000000
 
-struct GlideVsPushData {
-    uint padding;
-};
-
-struct GlideFfvsPushData {
-    ivec3 padding;
-};
-
 struct GlideFfpsPushData {
     uint flags;
     uint chromaKeyLow;
     uint chromaKeyHigh;
-    uint alphaTestFunction;
-    uint alphaTestReference;
+    uint alphaTest;
 
     ivec3 aspectRatioLog2;
-    uvec3 combinerTMU;
-    uint combinerPixelFx;
-
-    uint fogMode;
-    uint fogColor;
-    uvec4 fogTable;
-    vec2 depth;
-    vec3 gammaCorrection;
-
-    uint stipple;
     uint constantColor;
 
-    uint depthMode;
-    uint ditherMode;
+    uint delta0Color;
+    uint fogColor;
+    uint stipplePattern;
+
+    uint combinerPixelFx;
+
+    vec2 depth;
+    vec3 gammaCorrection;
 };
 
 struct GlideViewport {
@@ -110,14 +97,11 @@ spirv_instruction(set = "GLSL.std.450", id = 81) vec4 spvNClamp(vec4, vec4, vec4
 #define CBV_SET                 2
 #define SPEC_DATA_SET           3
 
-#define CBV_VS_CLIP_PLANES      0
-#define CBV_VS_FIXED_FUNCTION   1
-#define CBV_VS_VERTEX_BLEND     2
-
-#define CBV_PS_SHARED           5
+#define CBV_PS_SHARED           2
 
 layout(set = SPEC_DATA_SET, binding = 0, scalar) uniform SpecConsts {
     uint chromaMode;
+    uint fogMode;
 };
 
 uvec4 swizzleColor(uint format, uvec4 color) {
@@ -141,20 +125,20 @@ vec4 decodeColor(uint format, uint color) {
     a = (color & 0xFF);
   }
   else if (format == GR_COLORFORMAT_ARGB) {
+    a = (color >> 24) & 0xFF;
     r = (color >> 16) & 0xFF;
     g = (color >> 8) & 0xFF;
     b = (color & 0xFF);
-    a = (color >> 24) & 0xFF;
   }
   else if (format == GR_COLORFORMAT_ABGR) {
-    r = (color & 0xFF);
-    g = (color >> 8) & 0xFF;
-    b = (color >> 16) & 0xFF;
     a = (color >> 24) & 0xFF;
+    b = (color >> 16) & 0xFF;
+    g = (color >> 8) & 0xFF;
+    r = (color & 0xFF);
   } else {
-    r = (color >> 8) & 0xFF;
-    g = (color >> 16) & 0xFF;
     b = (color >> 24) & 0xFF;
+    g = (color >> 16) & 0xFF;
+    r = (color >> 8) & 0xFF;
     a = (color & 0xFF);
   }
 
@@ -162,9 +146,9 @@ vec4 decodeColor(uint format, uint color) {
 }
 
 uint getColorFormat(uint flags) {
-  return bitfieldExtract(flags, 30, 2);
+  return bitfieldExtract(flags, 11, 2);
 }
 
 bool getIgnoreGammaCorrection(uint flags) {
-  return bitfieldExtract(flags, 11, 1) != 0;
+  return bitfieldExtract(flags, 13, 1) != 0;
 }
