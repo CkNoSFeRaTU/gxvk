@@ -32,8 +32,9 @@ namespace dxvk {
     GrColorFormat_t ColorFormat;
   };
 
+  static constexpr uint32_t NumControlPoints = 256;
   class GlideSwapChain final {
-    constexpr static uint32_t DefaultFrameLatency = 1;
+    static constexpr uint32_t DefaultFrameLatency = 1;
 
   public:
     GlideSwapChain(HWND window, GlideDevice *parent, SwapChainDesc desc);
@@ -42,6 +43,7 @@ namespace dxvk {
     void BufferSwap(bool doSwap = true, FxU32 interval = 0);
     FxBool GetBuffer(GrBuffer_t Type, Rc<GlideCommonTexture>& ppBackBuffer);
     void Reset(HWND window, SwapChainDesc *desc);
+    void SetGammaRamp(std::array<DxvkGammaCp, NumControlPoints> table);
 
     force_inline void incRef() {
       m_refCount.fetch_add(1u);
@@ -102,6 +104,7 @@ namespace dxvk {
     uint32_t                  m_frameLatencyCap = 0;
     Rc<sync::CallbackFence>   m_frameLatencySignal;
 
+    std::array<DxvkGammaCp, NumControlPoints> m_gammaTable;
   };
 
 }

@@ -23,7 +23,6 @@ namespace dxvk {
     /// Use device local memory for constant buffers.
     Tristate  deviceLocalConstantBuffers;
     bool      deviceReset;
-    bool      ignoreGammaCorrection;
     bool      hackNoBlend;
     bool      hackNoClears;
     bool      hackNoDepth;

@@ -438,13 +438,14 @@ namespace dxvk {
 
         // Blit back buffer onto Vulkan swap chain
         auto contextObjects = ctx->beginExternalRendering();
+
         cBlitter->present(contextObjects, VkClearColorValue(), cDstView, cDstRect, cSrcView, cSrcRect);
 
         // Submit command list and present
         ctx->synchronizeWsi(cSync);
-        ctx->flushCommandList(nullptr, nullptr);
+        ctx->flushCommandList(nullptr, 0u);
 
-        cDevice->presentImage(cPresenter, cLatency, cFrameId, 0, nullptr, nullptr);
+        cDevice->presentImage(cPresenter, cLatency, cFrameId, 0, nullptr, 0u);
       });
 
       m_parent->FlushCsChunk();
@@ -533,6 +534,10 @@ namespace dxvk {
 #endif
 
     ChangeDisplayMode();
+  }
+
+  void GlideSwapChain::SetGammaRamp(std::array<DxvkGammaCp, NumControlPoints> table) {
+    m_blitter->setGammaRamp(table.size(), table.data());
   }
 
   void GlideSwapChain::UpdateRects(SwapChainDesc *desc) {

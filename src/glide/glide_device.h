@@ -54,6 +54,7 @@ namespace dxvk {
   enum class GlideDeviceDirtyFlag : uint32_t {
     Blend,
     Depth,
+    GammaTable,
     Framebuffer,
     FFShader,
     PushDataShared,
@@ -150,6 +151,7 @@ namespace dxvk {
     void SetDepthRange(FxFloat n, FxFloat f);
     void SetDitherMode(GrDitherMode_t mode);
     void SetGammaCorrection(FxFloat red, FxFloat green, FxFloat blue);
+    void SetGammaTable(FxU32 nentries, FxU32 *red, FxU32 *green, FxU32 *blue);
     void SetFogColor(GrColor_t fogColor);
     void SetFogMode(glide3x::GrFogMode_t mode);
     void SetFogTable(const GrFog_t *fogTable);
@@ -338,7 +340,6 @@ namespace dxvk {
     VkDeviceSize                    m_discardMemoryOnFlush = 0u;
     Rc<sync::Fence>                 m_submissionFence;
     uint64_t                        m_submissionId = 0ull;
-    DxvkSubmitStatus                m_submitStatus;
     uint64_t                        m_flushSeqNum = 0ull;
     GpuFlushTracker                 m_flushTracker;
 
@@ -379,7 +380,7 @@ namespace dxvk {
       VkRect2D scissor = {};
       GrCmpFnc_t alphaTestFunction = GR_CMP_ALWAYS;
       FxU8 alphaTestReference = 0;
-      FxFloat gammaCorrection[3] = { 0.0f, 0.0f, 0.0f };
+      std::array<DxvkGammaCp, NumControlPoints> gammaTable;
       GlideVertexLayout vertexLayout = {};
       struct {
         GrCombineFunction_t function = GR_COMBINE_FUNCTION_LOCAL;

@@ -749,7 +749,7 @@ extern "C" {
     if (unlikely(glideDevice == nullptr || nentries == 0 || red == nullptr || green == nullptr || blue == nullptr))
       return;
 
-    // TODO: implement proper gamma table on swapchain
+    glideDevice->SetGammaTable(nentries, red, green, blue);
   }
 
   DLLEXPORT FxI32 __stdcall grQueryResolutions(const glide3x::GrResolution *resTemplate, glide3x::GrResolution *output) {

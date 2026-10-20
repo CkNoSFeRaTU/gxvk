@@ -923,6 +923,7 @@ namespace dxvk {
       ENABLE_FEATURE(vk12, shaderOutputLayer, false),
       ENABLE_FEATURE(vk12, timelineSemaphore, true),
       ENABLE_FEATURE(vk12, uniformBufferStandardLayout, true),
+      ENABLE_FEATURE(vk12, uniformAndStorageBuffer8BitAccess, true),
       ENABLE_FEATURE(vk12, vulkanMemoryModel, true),
 
       ENABLE_FEATURE(vk13, inlineUniformBlock, true),

@@ -28,7 +28,6 @@ namespace dxvk {
 
     this->deviceLocalConstantBuffers = config.getOption<Tristate>("glide.deviceLocalConstantBuffers", Tristate::Auto);
     this->deviceReset = config.getOption<bool>("glide.deviceReset", true);
-    this->ignoreGammaCorrection = config.getOption<bool>("glide.ignoreGammaCorrection", false);
     this->hackNoBlend = config.getOption<bool>("glide.hackNoBlend", false);
     this->hackNoClears = config.getOption<bool>("glide.hackNoClears", false);
     this->hackNoDepth = config.getOption<bool>("glide.hackNoDepth", false);

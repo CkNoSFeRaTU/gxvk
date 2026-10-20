@@ -35,10 +35,16 @@ namespace dxvk {
       imageInfo.access |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT
                        |  VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-      imageInfo.debugName = m_desc.Id.c_str();
+      if (unlikely(m_device->GetDXVKDevice()->debugFlags().test(DxvkDebugFlag::Markers)))
+        imageInfo.debugName = m_desc.Id.c_str();
+
       m_totalSize = m_desc.Width * m_desc.Height * 4;
     } else if (m_desc.Type == GR_BUFFER_DEPTHBUFFER) {
-      imageInfo.debugName = m_desc.Id.c_str();
+      imageInfo.usage  |= VK_IMAGE_ASPECT_STENCIL_BIT;
+      if (unlikely(m_device->GetDXVKDevice()->debugFlags().test(DxvkDebugFlag::Markers)))
+        imageInfo.debugName = m_desc.Id.c_str();
+
+      m_totalSize = m_desc.Width * m_desc.Height * 2;
     } else {
       imageInfo.usage  |= VK_IMAGE_USAGE_SAMPLED_BIT;
     }
@@ -160,6 +166,8 @@ namespace dxvk {
     VkExtent3D levelExtent = m_image->mipLevelExtent(subresources.baseMipLevel);
     DxvkBufferSlice slice = DxvkBufferSlice(m_buffer, 0, size);
 
+    m_device->EmitFeedbackLoopBarriers(m_desc.Type == GR_BUFFER_FRONTBUFFER || m_desc.Type == GR_BUFFER_BACKBUFFER || m_desc.Type == GR_BUFFER_AUXBUFFER,
+                                       m_desc.Type == GR_BUFFER_DEPTHBUFFER);
     m_device->EmitCs([
       cImageBufferSlice = slice,
       cImage            = m_image,
@@ -173,11 +181,8 @@ namespace dxvk {
         cLevelExtent);
     });
 
-    m_device->EmitFeedbackLoopBarriers(m_desc.Type == GR_BUFFER_FRONTBUFFER || m_desc.Type == GR_BUFFER_BACKBUFFER || m_desc.Type == GR_BUFFER_AUXBUFFER,
-                                       m_desc.Type == GR_BUFFER_DEPTHBUFFER);
     m_device->ExecuteFlush();
-    m_device->SynchronizeCsThread(DxvkCsThread::SynchronizeAll);
-    m_device->GetDXVKDevice()->waitForResource(*m_buffer, DxvkAccess::Read);
+    m_device->SynchronizeCsThread(m_device->GetCurrentSequenceNumber());
     m_device->GetDXVKDevice()->waitForResource(*m_buffer, DxvkAccess::Write);
 
     uint8_t* ptr = reinterpret_cast<uint8_t*>(m_buffer->mapPtr(0));
@@ -247,6 +252,9 @@ namespace dxvk {
     FxU32 components = 4, dstPitch = 0;
     UtilConvertImageToRGBA(UtilLFBWriteModeToIFormat(m_lockmode), m_convertBuffer.data(), slice.mapPtr(0), components, dstPitch, m_desc.Width, m_desc.Height);
 
+    m_device->EmitFeedbackLoopBarriers(m_desc.Type == GR_BUFFER_FRONTBUFFER || m_desc.Type == GR_BUFFER_BACKBUFFER || m_desc.Type == GR_BUFFER_AUXBUFFER,
+                                       m_desc.Type == GR_BUFFER_DEPTHBUFFER);
+
     m_device->EmitCs([
       cSrcSlice       = slice,
       cDstImage       = m_image,
@@ -261,11 +269,8 @@ namespace dxvk {
         0, 0, cColorFormat);
     });
 
-    m_device->EmitFeedbackLoopBarriers(m_desc.Type == GR_BUFFER_FRONTBUFFER || m_desc.Type == GR_BUFFER_BACKBUFFER || m_desc.Type == GR_BUFFER_AUXBUFFER,
-                                       m_desc.Type == GR_BUFFER_DEPTHBUFFER);
     m_device->ExecuteFlush();
-    m_device->SynchronizeCsThread(DxvkCsThread::SynchronizeAll);
-    m_device->GetDXVKDevice()->waitForResource(*m_buffer, DxvkAccess::Write);
+    m_device->SynchronizeCsThread(m_device->GetCurrentSequenceNumber());
     m_device->GetDXVKDevice()->waitForResource(*m_buffer, DxvkAccess::Read);
   }
 

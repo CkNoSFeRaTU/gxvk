@@ -525,9 +525,5 @@ void main() {
     gl_FragDepth = clamp(in_Z / (ffps.depth.x - ffps.depth.y), 0.0, 1.0);
   }
 
-  if (!getIgnoreGammaCorrection(global.flags) && all(greaterThan(ffps.gammaCorrection, vec3(0.0))) && !all(equal(ffps.gammaCorrection, vec3(1.0)))) {
-    resultColor.rgb = pow(resultColor.rgb, 1.0 / ffps.gammaCorrection);
-  }
-
   out_Color = resultColor;
 }

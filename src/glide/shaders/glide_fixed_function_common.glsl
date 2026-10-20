@@ -59,7 +59,6 @@ struct GlideFfpsPushData {
     uint combinerPixelFx;
 
     vec2 depth;
-    vec3 gammaCorrection;
 };
 
 struct GlideViewport {
@@ -147,8 +146,4 @@ vec4 decodeColor(uint format, uint color) {
 
 uint getColorFormat(uint flags) {
   return bitfieldExtract(flags, 11, 2);
-}
-
-bool getIgnoreGammaCorrection(uint flags) {
-  return bitfieldExtract(flags, 13, 1) != 0;
 }

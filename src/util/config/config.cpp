@@ -1423,14 +1423,6 @@ namespace dxvk {
     /* Glide GAMES                                */
     /**********************************************/
 
-    /* Unreal games have issues with blending and *
-     * gamma correction in fragment shader        */
-    { R"(\\DeusEx\.exe$)", {{
-      { "glide.ignoreGammaCorrection",      "True" },
-    }} },
-    { R"(\\UnrealTournament\.exe$)", {{
-      { "glide.ignoreGammaCorrection",      "True" },
-    }} },
     /* Need for Speed: Porsche Unleashed.         *
        Has broken mipmaps                         */
     { R"(\\(Porsche|nfs5)\.exe$)", {{

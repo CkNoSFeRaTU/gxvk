@@ -62,7 +62,6 @@ namespace dxvk {
     uint32_t combinerPixelFx = 0u;
 
     float depth[2] = {0.0f, 0.0f};
-    float gammaCorrection[3] = {0.0f, 0.0f, 0.0f};
   };
 
   struct GlideSharedPushData {
