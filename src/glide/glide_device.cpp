@@ -126,7 +126,7 @@ namespace dxvk {
     }
 
     if (unlikely(!UtilRefreshRateToNumber(refreshRate, m_screen.refreshRate, refreshRate > GR_REFRESH_NONE))) {
-      Logger::warn(str::format("Invalid refresh rate passed:", refreshRate));
+      Logger::warn(str::format("Invalid refresh rate passed: ", refreshRate));
       m_screen.refreshRate = 60;
     }
 

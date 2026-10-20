@@ -623,7 +623,16 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grSstPerfStats(GrSstPerfStats_t *pStats) {
-    DEBUGLOG("stub: grSstPerfStats");
+    DEBUGLOG(">>> grSstPerfStats");
+
+    // TODO: support stats?
+    if (likely(pStats != nullptr)) {
+      pStats->aFuncFail = 0;
+      pStats->chromaFail = 0;
+      pStats->pixelsIn = 0;
+      pStats->pixelsOut = 0;
+      pStats->zFuncFail = 0;
+    }
   }
 
   DLLEXPORT FxBool __stdcall grSstQueryBoards(GrHwConfiguration *hwconfig) {
@@ -934,7 +943,14 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grTriStats(FxU32 *trisProcessed, FxU32 *trisDrawn) {
-    DEBUGLOG("stub: grTriStats");
+    DEBUGLOG(">>> grTriStats");
+
+    // TODO: support stats?
+    if (likely(trisProcessed != nullptr))
+      *trisProcessed = 0;
+
+    if (likely(trisDrawn != nullptr))
+      *trisDrawn = 0;
   }
 
   DLLEXPORT FxBool __stdcall gu3dfGetInfo(const char *filename, glide2x::Gu3dfInfo *info) {

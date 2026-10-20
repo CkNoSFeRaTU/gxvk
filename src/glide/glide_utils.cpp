@@ -312,7 +312,8 @@ namespace dxvk {
         result.SSTs[0].sstBoard.Voodoo2Config.fbiRev = config->fbRev;
         result.SSTs[0].sstBoard.Voodoo2Config.fbRam = config->fbRam;
         result.SSTs[0].sstBoard.Voodoo2Config.nTexelfx = config->tmuCount;
-        result.SSTs[0].sstBoard.VoodooConfig.sliDetect = config->sli;
+        result.SSTs[0].sstBoard.Voodoo2Config.sliDetect = config->sli;
+        result.SSTs->type = GR_SSTTYPE_Voodoo2;
         for (FxI32 i = 0; i < std::min(config->tmuCount, GLIDE_NUM_TMU); i++) {
           result.SSTs[0].sstBoard.Voodoo2Config.tmuConfig[i].tmuRev = config->tmuRev;
           result.SSTs[0].sstBoard.Voodoo2Config.tmuConfig[i].tmuRam = config->tmuRam;

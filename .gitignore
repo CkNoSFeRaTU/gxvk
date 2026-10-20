@@ -2,3 +2,5 @@ subprojects/.wraplock
 .vscode
 *.sh
 *.patch
+*.rej
+*.orig
