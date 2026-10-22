@@ -238,6 +238,11 @@ namespace dxvk {
         else
           currentSize = height * width * blockSize;
 
+          if (round) {
+            currentSize += SST1_TEXTURE_ALIGN_MASK << 3;
+            currentSize &= ~(SST1_TEXTURE_ALIGN_MASK << 3);
+          }
+
         if (offsets != nullptr) {
           GlideMipMapOffset offset;
           offset.smallLodLog2 = thisSmallLodLog2;
@@ -260,12 +265,6 @@ namespace dxvk {
 
     // bits to bytes
     memSize >>= 3;
-
-    // round up to SST1 boundary
-    if (round) {
-      memSize += SST1_TEXTURE_ALIGN_MASK;
-      memSize &= ~SST1_TEXTURE_ALIGN_MASK;
-    }
 
     DEBUGLOG(str::format("format size calculation: ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(format)), ", smallLodLog2: ", smallLodLog2, ", largeLodLog2: ", largeLodLog2, ", aspectRatioLog2: ", aspectRatioLog2, ", memSize: ", memSize));
     return memSize;
@@ -455,7 +454,7 @@ namespace dxvk {
       return FXTRUE;
     } else {
       for (const auto& curResolution: GlideStaticResolutions) {
-        if (curResolution.width == width && curResolution.height) {
+        if (curResolution.width == width && curResolution.height == height) {
           resolution = curResolution.resolution;
           return FXTRUE;
         }
@@ -1023,7 +1022,7 @@ namespace dxvk {
   }
 
   FxBool UtilConvertImageToRGBA(GrIntFmt_t format, const void* srcPtr, void* dstPtr, FxU32& dstComponents, FxU32& dstPitch, FxU32 width, FxU32 height
-        , FxBool isPalette6666, const std::array<FxU32, VOODOO_PALETTE_TABLE_SIZE> *palette, GrColorFormat_t *colorFormat) {
+        , FxBool isPalette6666, const std::array<FxU32, VOODOO_PALETTE_TABLE_SIZE> *palette, const GuNccTable *ncc, GrColorFormat_t *colorFormat) {
     FxU32 blockSize = 0;
     UtilTextureFormatSize(format, &blockSize, nullptr, nullptr);
     size_t srcPitch = width * (blockSize >> 3);
@@ -1037,6 +1036,7 @@ namespace dxvk {
       case GR_FMT_P_8:
       case GR_FMT_UYVY_422:
       case GR_FMT_YUYV_422:
+      case GR_FMT_YIQ_422:
         if (dstComponents != 4)
           dstComponents = 3;
         break;
@@ -1050,6 +1050,7 @@ namespace dxvk {
       case GR_FMT_AI_44:
       case GR_FMT_AI_88:
       case GR_FMT_AP_88:
+      case GR_FMT_AYIQ_8422:
         dstComponents = 4;
         break;
       case GR_FMT_ARGB_CMP_DXT1:
@@ -1066,6 +1067,11 @@ namespace dxvk {
 
     if (unlikely((format == GR_FMT_P_8 || format == GR_FMT_AP_88) && palette == nullptr)) {
       Logger::err(str::format("Paletted format: ", UtilInternalFormatToString(format), " without palette"));
+      return FXFALSE;
+    }
+
+    if (unlikely((format == GR_FMT_YIQ_422 || format == GR_FMT_AYIQ_8422) && ncc == nullptr)) {
+      Logger::err(str::format("NCC format: ", UtilInternalFormatToString(format), " without ncc"));
       return FXFALSE;
     }
 
@@ -1300,6 +1306,36 @@ namespace dxvk {
             dst[idxDst + 5 + (dstComponents == 4 ? 1 : 0)] = b;
             if (dstComponents == 4)
               dst[idxDst + 7] = 0xFF;
+          }
+          break;
+        case GR_FMT_YIQ_422:
+          for (uint32_t x = 0; x < width; x++) {
+            const uint32_t idxDst = dstComponents * x;
+            const uint8_t Y = (src[x] >> 4) & 0x0F;
+            const uint8_t A = (src[x] >> 2) & 0x03;
+            const uint8_t B =  src[x]       & 0x03;
+
+            uint8_t y = ncc->yRGB[Y];
+            dst[idxDst    ] = y + ncc->iRGB[A][0] + ncc->qRGB[B][0];
+            dst[idxDst + 1] = y + ncc->iRGB[A][1] + ncc->qRGB[B][1];
+            dst[idxDst + 2] = y + ncc->iRGB[A][2] + ncc->qRGB[B][2];
+            if (dstComponents == 4)
+              dst[idxDst + 3] = 0xFF;
+          }
+          break;
+        case GR_FMT_AYIQ_8422:
+          for (uint32_t x = 0; x < width; x++) {
+            const uint32_t idxDst = dstComponents * x;
+            const uint16_t pixel = ((const uint16_t *)src)[x];
+            const uint8_t Y = (pixel >> 4) & 0x0F;
+            const uint8_t A = (pixel >> 2) & 0x03;
+            const uint8_t B =  pixel       & 0x03;
+
+            uint8_t y = ncc->yRGB[Y];
+            dst[idxDst    ] = y + ncc->iRGB[A][0] + ncc->qRGB[B][0];
+            dst[idxDst + 1] = y + ncc->iRGB[A][1] + ncc->qRGB[B][1];
+            dst[idxDst + 2] = y + ncc->iRGB[A][2] + ncc->qRGB[B][2];
+            dst[idxDst + 3] = pixel >> 8;
           }
           break;
         default:

@@ -520,7 +520,7 @@ void main() {
 
   const uint depthMode = getDepthMode();
   if (depthMode == GR_DEPTHBUFFER_WBUFFER || depthMode == GR_DEPTHBUFFER_WBUFFER_COMPARE_TO_BIAS) {
-    gl_FragDepth = clamp((1.0 / in_W - ffps.depth.y) / (ffps.depth.x - ffps.depth.y), 0.0, 1.0);
+    gl_FragDepth = clamp(((1.0 / in_W) - 1.0) / 65527.0, 0.0, 1.0);
   } else if (depthMode == GR_DEPTHBUFFER_ZBUFFER || depthMode == GR_DEPTHBUFFER_ZBUFFER_COMPARE_TO_BIAS) {
     gl_FragDepth = clamp(in_Z / (ffps.depth.x - ffps.depth.y), 0.0, 1.0);
   }

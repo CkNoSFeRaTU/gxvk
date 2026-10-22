@@ -109,9 +109,9 @@ namespace dxvk {
     } m_state;
 
   private:
-    template <FxU32 N>
-    size_t calculateHash(const std::array<FxU32, N>* arr) {
-      std::string_view sv{reinterpret_cast<const char*>(arr->data()), arr->size() * sizeof(FxU32)};
+    template <typename R, FxU32 N>
+    size_t calculateHash(const std::array<R, N>* arr) {
+      std::string_view sv{reinterpret_cast<const char*>(arr->data()), arr->size() * sizeof(R)};
       return std::hash<std::string_view>{}(sv);
     }
 
@@ -124,8 +124,8 @@ namespace dxvk {
     GrTexTable_t                      m_currentNcc = GR_TEXTABLE_NCC0;
     std::array<FxU32,
       VOODOO_PALETTE_TABLE_SIZE>      m_palette = { };
-    std::array<std::array<FxU32,
-      VOODOO_NCC_TABLE_SIZE>, 2>      m_ncc = { };
+    std::array<std::array<FxU8,
+      sizeof(GuNccTable)>, 2>         m_ncc = { };
     std::map<TMUAddress, TMUTexture>  m_regions = { };
 
     FxBool                            m_palette6666set = FXFALSE;

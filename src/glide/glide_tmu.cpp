@@ -19,7 +19,7 @@ namespace dxvk {
     if (unlikely(metadata.data == nullptr))
       return FXFALSE;
 
-    DEBUGLOG(str::format("TMU ", m_id, " texture insert request ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", metadata.smallLodLog2, "/", metadata.largeLodLog2, "(", metadata.aspectRatioLog2, ")"));
+    DEBUGLOG(str::format("TMU ", m_id, " texture mipmaps insert request ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", metadata.smallLodLog2, "/", metadata.largeLodLog2, "(", metadata.aspectRatioLog2, ")"));
 
     std::vector<GlideMipMapOffset> mipmaps = {};
     metadata.size = UtilGetTextureSize(metadata.smallLodLog2, metadata.largeLodLog2, metadata.aspectRatioLog2, metadata.format, metadata.evenOdd, true, &mipmaps);
@@ -55,7 +55,7 @@ namespace dxvk {
     if (unlikely(metadata.data == nullptr))
       return FXFALSE;
 
-    DEBUGLOG(str::format("TMU ", m_id, " texture insert request ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", metadata.smallLodLog2, "/", metadata.largeLodLog2, "(", metadata.aspectRatioLog2, ")"));
+    DEBUGLOG(str::format("TMU ", m_id, " texture mipmap insert request ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", metadata.smallLodLog2, "/", metadata.largeLodLog2, "(", metadata.aspectRatioLog2, ") from: ", start, " to ", end));
 
     std::vector<GlideMipMapOffset> mipmaps = {};
     metadata.size = UtilGetTextureSize(metadata.smallLodLog2, metadata.largeLodLog2, metadata.aspectRatioLog2, metadata.format, metadata.evenOdd, true, &mipmaps);
@@ -120,7 +120,7 @@ namespace dxvk {
   }
 
   FxBool GlideTMU::SetTable(GrTexTable_t type, void *data, FxU32 start = 0, FxU32 stop = 0) {
-    DEBUGLOG(str::format("TMU ", m_id, " table selection"));
+    DEBUGLOG(str::format("TMU ", m_id, " table selection: ", type));
     if (unlikely(data == nullptr))
       return FXFALSE;
 
@@ -161,24 +161,24 @@ namespace dxvk {
         if (start == 0 && stop == 0)
           stop = VOODOO_PALETTE_TABLE_SIZE - 1;
 
-        FxU32 length = stop - start;
+        FxU32 length = stop - start + 1;
         memcpy(m_palette.data() + start * sizeof(FxU32), data, length * sizeof(FxU32));
         m_hashes[0] = calculateHash(&m_palette);
         m_palette6666set = FXFALSE;
 
-        DEBUGLOG(str::format("TMU ", m_id, " palette applied"));
+        DEBUGLOG(str::format("TMU ", m_id, " palette applied: ", start, ", ", stop));
         return FXTRUE;
       }
       case GR_TEXTABLE_NCC0:
       case GR_TEXTABLE_NCC1: {
-        start = std::clamp(start, 0U, VOODOO_NCC_TABLE_SIZE - 1);
-        stop = std::clamp(stop, 0U, VOODOO_NCC_TABLE_SIZE - 1);
+        start = std::clamp(start, 0U, sizeof(GuNccTable) - 1);
+        stop = std::clamp(stop, 0U, sizeof(GuNccTable) - 1);
 
         if (start > stop)
           return FXFALSE;
 
         if (start == 0 && stop == 0)
-          stop = VOODOO_NCC_TABLE_SIZE - 1;
+          stop = sizeof(GuNccTable) - 1;
 
         FxU32 length = stop - start;
         auto &ncc = m_ncc[type == GR_TEXTABLE_NCC0 ? 0 : 1];
@@ -313,7 +313,13 @@ namespace dxvk {
       std::vector<uint8_t> pixelData;
       pixelData.resize(bufferSize);
 
-      UtilConvertImageToRGBA(UtilTexFormatToInternalFormat(metadata.format), metadata.data, pixelData.data(), components, dstPitch, mipmap.width, mipmap.height, m_palette6666set, &m_palette);
+      GuNccTable *ncc = nullptr;
+      if (unlikely(metadata.format == GR_TEXFMT_YIQ_422))
+        ncc = reinterpret_cast<GuNccTable*>(m_ncc[0].data());
+      else if (unlikely(metadata.format == GR_TEXFMT_AYIQ_8422))
+        ncc = reinterpret_cast<GuNccTable*>(m_ncc[1].data());
+
+      UtilConvertImageToRGBA(UtilTexFormatToInternalFormat(metadata.format), metadata.data, pixelData.data(), components, dstPitch, mipmap.width, mipmap.height, m_palette6666set, &m_palette, ncc);
       VkDeviceSize pitch = align(dstPitch, components);
 
       auto slice = m_parent->GetStagingBuffer()->alloc(bufferSize);

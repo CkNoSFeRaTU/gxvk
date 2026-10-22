@@ -15,6 +15,12 @@ namespace dxvk {
     CARD_VOODOO5 = 7,  // H5
   };
 
+  enum class GlideDepthFormat : uint8_t {
+    DEPTH_D16 = 0,
+    DEPTH_D24 = 1,
+    DEPTH_D32 = 2,
+  };
+
   struct GlideOptions {
     GlideOptions(const Config& config);
 
@@ -28,9 +34,11 @@ namespace dxvk {
     bool      hackNoDepth;
     bool      hackNoLFB;
     bool      hackNoMipMaps;
+    bool      perTMUTables;
     int32_t   presentInterval;
     int32_t   maxFrameRate;
     bool      multithread;
+    int32_t   useDepthFormat;
     bool      useMonitorResolution;
   };
 

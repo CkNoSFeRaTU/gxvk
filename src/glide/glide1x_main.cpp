@@ -143,7 +143,10 @@ extern "C" {
   }
 
   DLLEXPORT int __stdcall grBufferNumPending(void) {
-    DEBUGLOG("stub: grBufferNumPending");
+    DEBUGLOG(">>> grBufferNumPending");
+
+    // TODO: report back when buffer finished drawing?
+
     return 0;
   }
 
@@ -838,11 +841,25 @@ extern "C" {
     if (unlikely(glideDevice == nullptr || data == nullptr))
       return;
 
-    Rc<GlideTMU> TMU = glideDevice->GetTMU(tmu);
-    if (unlikely(TMU == nullptr))
-      return;
+    if (likely(glideDevice->GetOptions()->perTMUTables)) {
+      Rc<GlideTMU> TMU = glideDevice->GetTMU(tmu);
+      if (unlikely(TMU == nullptr))
+        return;
 
-    TMU->SetTable(type, data, 0, 0);
+      TMU->SetTable(type, data, 0, 0);
+    } else {
+      Rc<GlideTMU> TMU = glideDevice->GetTMU(GR_TMU0);
+      if (unlikely(TMU != nullptr))
+        TMU->SetTable(type, data, 0, 0);
+
+      TMU = glideDevice->GetTMU(GR_TMU1);
+      if (unlikely(TMU != nullptr))
+        TMU->SetTable(type, data, 0, 0);
+
+      TMU = glideDevice->GetTMU(GR_TMU2);
+      if (unlikely(TMU != nullptr))
+        TMU->SetTable(type, data, 0, 0);
+    }
   }
 
   DLLEXPORT void __stdcall grTexDownloadTablePartial(GrChipID_t tmu, GrTexTable_t type, void *data, int start, int end) {
@@ -851,11 +868,25 @@ extern "C" {
     if (unlikely(glideDevice == nullptr || data == nullptr))
       return;
 
-    Rc<GlideTMU> TMU = glideDevice->GetTMU(tmu);
-    if (unlikely(TMU == nullptr))
-      return;
+    if (likely(glideDevice->GetOptions()->perTMUTables)) {
+      Rc<GlideTMU> TMU = glideDevice->GetTMU(tmu);
+      if (unlikely(TMU == nullptr))
+        return;
 
-    TMU->SetTable(type, data, start, end);
+      TMU->SetTable(type, data, start, end);
+    } else {
+      Rc<GlideTMU> TMU = glideDevice->GetTMU(GR_TMU0);
+      if (unlikely(TMU != nullptr))
+        TMU->SetTable(type, data, start, end);
+
+      TMU = glideDevice->GetTMU(GR_TMU1);
+      if (unlikely(TMU != nullptr))
+        TMU->SetTable(type, data, start, end);
+
+      TMU = glideDevice->GetTMU(GR_TMU2);
+      if (unlikely(TMU != nullptr))
+        TMU->SetTable(type, data, start, end);
+    }
   }
 
   DLLEXPORT void __stdcall grTexFilterMode(GrChipID_t tmu, GrTextureFilterMode_t minfilter_mode, GrTextureFilterMode_t magfilter_mode) {

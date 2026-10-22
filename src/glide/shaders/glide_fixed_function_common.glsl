@@ -2,6 +2,7 @@ const uint TextureStageCount = 3;
 const uint MaxSharedPushDataSize = 32;
 const uint FogTableSize = 64;
 
+const float GLIDE_FPTHRESHOLD = 524288.0;
 const float GLIDE_FPBIAS = 786432.0;
 const float GLIDE_TEXCOORD = 256.0;
 const float GLIDE_COLOR_MAX = 255.0;

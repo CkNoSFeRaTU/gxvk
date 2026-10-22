@@ -37,6 +37,8 @@ namespace dxvk {
                          config.getOption<int32_t>("glide.maxFrameRate", 0));
     this->multithread = config.getOption<bool>("glide.multithread", false);
     this->presentInterval = config.getOption<int32_t>("glide.presentInterval", -1);
+    this->perTMUTables = config.getOption<bool>("glide.perTMUTables", true);
+    this->useDepthFormat = config.getOption<int32_t>("glide.useDepthFormat", 0);
     this->useMonitorResolution = config.getOption<bool>("glide.useMonitorResolution", false);
   }
 

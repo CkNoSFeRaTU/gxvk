@@ -319,7 +319,7 @@ namespace dxvk {
             ](DxvkContext* ctx) {
               VkImageAspectFlags cAspectMask = cSubResource.aspectMask;
 
-              if (cPartial) {
+              if (!cPartial) {
                 DxvkAttachment attachment = {};
                 attachment.view = cView;
 
@@ -350,10 +350,19 @@ namespace dxvk {
 
           Rc<DxvkImage> image = textureDepth->GetImage();
           Rc<DxvkImageView> view = textureDepth->GetView(0);
+          const FxBool partial = memcmp(&m_state.viewport, &m_state.scissor, sizeof(VkRect2D)) != 0;
           if (likely(image != nullptr && view != nullptr)) {
-            VkImageSubresourceRange subresources = textureDepth->GetImage()->getAvailableSubresources();
+            VkImageSubresourceRange subresources = image->getAvailableSubresources();
+            const bool inverted = m_state.originLocation == GrOriginLocation_t::GR_ORIGIN_LOWER_LEFT;
+            const VkRect2D& viewport = m_state.viewport;
+            const VkRect2D& scissor = m_state.scissor;
+            VkOffset3D offset = VkOffset3D{scissor.offset.x, inverted ? static_cast<int32_t>(viewport.extent.height - scissor.extent.height) : scissor.offset.y, 0};
+            VkExtent3D extent = VkExtent3D{scissor.extent.width - scissor.offset.x, scissor.extent.height - scissor.offset.y, 0};
 
             EmitCs([
+              cPartial = partial,
+              cOffset = offset,
+              cExtent = extent,
               cView = view,
               cSubResource = subresources,
               cClearValue = clearBlock
@@ -361,7 +370,15 @@ namespace dxvk {
               DxvkAttachment attachment = {};
               attachment.view = cView;
               VkImageAspectFlags cAspectMask = cSubResource.aspectMask;
-              ctx->clearRenderTarget(attachment, cAspectMask, cClearValue, 0u);
+
+              if (!cPartial) {
+                DxvkAttachment attachment = {};
+                attachment.view = cView;
+
+                ctx->clearRenderTarget(attachment, cAspectMask, cClearValue, 0u);
+              } else {
+                ctx->clearImageView(cView, cOffset, cExtent, cAspectMask, cClearValue);
+              }
             });
             DEBUGLOG(str::format("depth ", m_state.renderBuffer, " cleared"));
           }
@@ -743,12 +760,15 @@ namespace dxvk {
     float depthBias = bit::cast<float>(m_state.depthBiasLevel);
 
     DxvkDepthBias biases;
-    biases.depthBiasConstant = depthBias / 65535.0f;
+    if (unlikely(m_state.depthMode == GR_DEPTHBUFFER_WBUFFER_COMPARE_TO_BIAS || m_state.depthMode == GR_DEPTHBUFFER_ZBUFFER_COMPARE_TO_BIAS))
+      biases.depthBiasConstant = depthBias / static_cast<float>(SST1_ZDEPTHVALUE_NEAREST);
+    else
+      biases.depthBiasConstant = 0.0f;
     biases.depthBiasClamp    = 0.0f;
 
     DxvkDepthBounds bounds;
-    bounds.minDepthBounds = float(m_state.depthRange.f) / (m_state.depthRange.n - m_state.depthRange.f);
-    bounds.maxDepthBounds = float(m_state.depthRange.n) / (m_state.depthRange.n - m_state.depthRange.f);
+    bounds.minDepthBounds = m_state.depthRange.f / static_cast<float>(SST1_ZDEPTHVALUE_NEAREST);
+    bounds.maxDepthBounds = m_state.depthRange.n / static_cast<float>(SST1_ZDEPTHVALUE_NEAREST);
 
     DxvkDepthStencilState state = { };
     state.setDepthTest(m_state.depthMode != GR_DEPTHBUFFER_DISABLE);
@@ -1703,8 +1723,12 @@ namespace dxvk {
   void GlideDevice::SetDepthBufferMode(GrDepthBufferMode_t mode) {
     if (m_state.depthMode != mode) {
       m_state.depthMode = mode;
-      m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
-      m_dirty.set(GlideDeviceDirtyFlag::Depth);
+      if (unlikely(m_state.depthMode == GR_DEPTHBUFFER_WBUFFER_COMPARE_TO_BIAS || m_state.depthMode == GR_DEPTHBUFFER_ZBUFFER_COMPARE_TO_BIAS)) {
+        static bool sWarnShown = false;
+        if (!std::exchange(sWarnShown, true))
+          Logger::warn(str::format("Unsupported depth compare to bias mode: ", mode));
+      }
+      m_dirty.set(GlideDeviceDirtyFlag::Depth, GlideDeviceDirtyFlag::PushDataFfps);
     }
   }
 
@@ -2150,7 +2174,6 @@ namespace dxvk {
   FxI32 GlideDevice::QueryResolutions(const glide3x::GrResolution *resTemplate, glide3x::GrResolution *output) {
     GlideDeviceLock lock = LockDevice();
 
-    DEBUGLOG("Reporting display modes request");
     if (unlikely(resTemplate == nullptr))
       return 0;
 
@@ -2163,7 +2186,7 @@ namespace dxvk {
     int count = 0;
     const bool extendedResolution = resTemplate->resolution == glide3x::GR_EXTENDED;
     const bool extendedRefreshRate = resTemplate->refresh == glide3x::GR_EXTENDED;
-    DEBUGLOG(str::format("Reporting display modes extended status: ", extendedResolution, "@", extendedResolution));
+    DEBUGLOG(str::format("Reporting display modes request: ", resTemplate->resolution, "@", resTemplate->refresh, output == nullptr ? " only size" : ""));
     for (DWORD idx = 0; wsi::getDisplayMode(monitor, idx, &mode); idx++) {
       // let's hope everyone is using monitors with 32bit color support by now
       if (mode.bitsPerPixel != 32)

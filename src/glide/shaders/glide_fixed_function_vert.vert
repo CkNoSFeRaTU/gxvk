@@ -131,7 +131,7 @@ vec4 transformVertex() {
     result = vec4(in_XY, 0.0, 1.0);
     result.xy = in_XY;
 
-    if (all(greaterThanEqual(result.xy, vec2(GLIDE_FPBIAS)))) {
+    if (all(greaterThanEqual(result.xy, vec2(GLIDE_FPTHRESHOLD)))) {
       result.xy -= GLIDE_FPBIAS;
     }
 

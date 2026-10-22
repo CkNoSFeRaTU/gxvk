@@ -971,10 +971,6 @@ extern "C" {
     TMU = glideDevice->GetTMU(GR_TMU2);
     if (unlikely(TMU != nullptr))
       TMU->SetTable(type, data, 0, 0);
-
-    TMU = glideDevice->GetTMU(GR_TMU3);
-    if (unlikely(TMU != nullptr))
-      TMU->SetTable(type, data, 0, 0);
   }
 
   DLLEXPORT void __stdcall grTexDownloadTablePartial(GrTexTable_t type, void * data, FxI32 start, FxI32 end) {
@@ -992,10 +988,6 @@ extern "C" {
       TMU->SetTable(type, data, start, end);
 
     TMU = glideDevice->GetTMU(GR_TMU2);
-    if (unlikely(TMU != nullptr))
-      TMU->SetTable(type, data, start, end);
-
-    TMU = glideDevice->GetTMU(GR_TMU3);
     if (unlikely(TMU != nullptr))
       TMU->SetTable(type, data, start, end);
   }

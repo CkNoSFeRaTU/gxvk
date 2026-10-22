@@ -176,8 +176,15 @@ namespace dxvk {
       case GR_BUFFER_FRONTBUFFER:
       case GR_BUFFER_AUXBUFFER:
         return { VK_FORMAT_R8G8B8A8_UNORM, m_colorSpace };
-      case GR_BUFFER_DEPTHBUFFER:
-        return { VK_FORMAT_D16_UNORM, m_colorSpace };
+      case GR_BUFFER_DEPTHBUFFER: {
+        const GlideDepthFormat depthFormat = static_cast<GlideDepthFormat>(m_parent->GetOptions()->useDepthFormat);
+        if (depthFormat == GlideDepthFormat::DEPTH_D24)
+          return { VK_FORMAT_D24_UNORM_S8_UINT, m_colorSpace };
+        if (depthFormat == GlideDepthFormat::DEPTH_D32)
+          return { VK_FORMAT_D32_SFLOAT, m_colorSpace };
+        else
+          return { VK_FORMAT_D16_UNORM, m_colorSpace };
+      }
     }
   }
 

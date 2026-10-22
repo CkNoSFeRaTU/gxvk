@@ -1423,10 +1423,22 @@ namespace dxvk {
     /* Glide GAMES                                */
     /**********************************************/
 
+    /* Metal fatigue.                             *
+       Depth precision issues                     */
+    { R"(\\MFatigue\.exe$)", {{
+      { "glide.useDepthFormat",                "1" },
+    }} },
+
     /* Need for Speed: Porsche Unleashed.         *
        Has broken mipmaps                         */
     { R"(\\(Porsche|nfs5)\.exe$)", {{
       { "glide.autoGenMipMaps",             "True" },
+    }} },
+
+    /* X-Com Enforcer.                            *
+       Has issues with choosing correct palette   */
+    { R"(\\System\\XCom\.exe$)", {{
+      { "glide.perTMUTables",             "False" },
     }} },
   };
 

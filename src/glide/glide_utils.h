@@ -52,6 +52,6 @@ namespace dxvk {
   FxBool UtilClearImage(GrIntFmt_t format, GrColorFormat_t colorFormat, GrColor_t color, void* dstPtr, VkRect2D dimensions, VkRect2D region);
   FxBool UtilConvertRGBAToImage(GrIntFmt_t format, const void *srcPtr, void *dstPtr, FxU32 width, FxU32 height);
   FxBool UtilConvertImageToRGBA(GrIntFmt_t format, const void* srcPtr, void *dstPtr, FxU32& dstComponents, FxU32& dstPitch, FxU32 width, FxU32 height
-    , FxBool isPalette6666 = FXFALSE, const std::array<FxU32, VOODOO_PALETTE_TABLE_SIZE> *palette = nullptr, GrColorFormat_t *colorFormat = nullptr);
+    , FxBool isPalette6666 = FXFALSE, const std::array<FxU32, VOODOO_PALETTE_TABLE_SIZE> *palette = nullptr, const GuNccTable *ncc = nullptr, GrColorFormat_t *colorFormat = nullptr);
 
 }
