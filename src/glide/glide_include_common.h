@@ -804,8 +804,8 @@ typedef struct {
     PciIOFlag          rwFlag;
 } PciRegister;
 
-typedef FxBool __stdcall (*GrSplashInitProc)(FxU32 hWnd, FxU32 screenWidth, FxU32 screenHeight, FxU32 numColBuf, FxU32 numAuxBuf, GrColorFormat_t colorFormat);
-typedef void __stdcall (*GrSplashShutdownProc)(void);
-typedef void __stdcall (*GrSplashProc)(float x, float y, float w, float h, FxU32 frameNumber);
-typedef const void* __stdcall (*GrSplashPlugProc)(FxU32* w, FxU32* h, FxI32* strideInBytes, GrLfbWriteMode_t* format);
-typedef void __stdcall (*GrErrorCallbackFnc_t)(const char *string, FxBool fatal);
+using GrSplashInitProc = FxBool (__stdcall *)(FxU32 hWnd, FxU32 screenWidth, FxU32 screenHeight, FxU32 numColBuf, FxU32 numAuxBuf, GrColorFormat_t colorFormat);
+using GrSplashShutdownProc = void (__stdcall *)(void);
+using GrSplashProc = void (__stdcall *)(float x, float y, float w, float h, FxU32 frameNumber);
+using GrSplashPlugProc = const void* (__stdcall *)(FxU32* w, FxU32* h, FxI32* strideInBytes, GrLfbWriteMode_t* format);
+using GrErrorCallbackFnc_t = void (__stdcall *)(const char *string, FxBool fatal);

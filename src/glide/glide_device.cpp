@@ -1418,7 +1418,7 @@ namespace dxvk {
     if (likely(height != nullptr))
       *height = m_state.viewport.extent.height;
   }
-  
+
   void GlideDevice::SetAlphaBlendFunction(GrAlphaBlendFnc_t rgb_sf, GrAlphaBlendFnc_t rgb_df, GrAlphaBlendFnc_t alpha_sf, GrAlphaBlendFnc_t alpha_df) {
     if (m_state.blend.dstAlpha != alpha_df || m_state.blend.dstColor != rgb_df ||
         m_state.blend.srcAlpha != alpha_sf || m_state.blend.srcColor != rgb_sf) {
@@ -2114,10 +2114,10 @@ namespace dxvk {
 
     HMODULE splashLibrary = LoadLibrary(splashLibraryName);
     if (splashLibrary != nullptr) {
-      GrSplashProc fxSplash = (GrSplashProc)GetProcAddress(splashLibrary, "_fxSplash@20");
-      GrSplashInitProc fxSplashInit = (GrSplashInitProc)GetProcAddress(splashLibrary, "_fxSplashInit@24");
-      GrSplashPlugProc fxSplashPlug = (GrSplashPlugProc)GetProcAddress(splashLibrary, "_fxSplashPlug@16");
-      GrSplashShutdownProc fxSplashShutdown = (GrSplashShutdownProc)GetProcAddress(splashLibrary, "_fxSplashShutdown@0");
+      GrSplashProc fxSplash = reinterpret_cast<GrSplashProc>(GetProcAddress(splashLibrary, "_fxSplash@20"));
+      GrSplashInitProc fxSplashInit = reinterpret_cast<GrSplashInitProc>(GetProcAddress(splashLibrary, "_fxSplashInit@24"));
+      GrSplashPlugProc fxSplashPlug = reinterpret_cast<GrSplashPlugProc>(GetProcAddress(splashLibrary, "_fxSplashPlug@16"));
+      GrSplashShutdownProc fxSplashShutdown = reinterpret_cast<GrSplashShutdownProc>(GetProcAddress(splashLibrary, "_fxSplashShutdown@0"));
 
       glide2x::GrState glideState;
       GetState(&glideState);
