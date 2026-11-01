@@ -55,14 +55,14 @@ namespace dxvk {
       return m_parent;
     }
 
-    FxBool InsertTextures(TMUMetadata metadata, size_t start = 0, size_t end = 0);
-    FxBool InsertTextureLevel(TMUMetadata metadata, size_t start = 0, size_t end = 0);
+    FxBool InsertTextures(TMUMetadata metadata);
+    FxBool InsertTextureLevel(TMUMetadata metadata, int start = -1, int end = -1);
 
     const TMUTexture* GetTexture(TMUMetadata& metadata);
 
     void SelectNCCTable(GrTexTable_t table);
 
-    FxBool SetTable(GrTexTable_t type, void *data, FxU32 start, FxU32 stop);
+    FxBool SetTable(GrTexTable_t type, void *data, int start = -1, int stop = -1);
 
     FxBool UploadTextures(TMUMetadata metadata);
 
@@ -78,35 +78,6 @@ namespace dxvk {
       if (m_refCount.fetch_sub(1u) == 1u)
         delete this;
     }
-
-    struct {
-      struct {
-        GrCombineFunction_t alphaFunction;
-        GrCombineFactor_t alphaFactor;
-        FxBool alphaInvert;
-        GrCombineFunction_t colorFunction;
-        GrCombineFactor_t colorFactor;
-        FxBool colorInvert;
-      } texCombine;
-      struct {
-        FxI32 lodBias;
-        FxU8 scale;
-        float max;
-      } texDetailControl;
-      struct {
-        GrTextureFilterMode_t min;
-        GrTextureFilterMode_t mag;
-      } texFilterMode;
-      struct {
-        GrMipMapMode_t mode;
-        FxBool lodBlend;
-      } texMipMapMode;
-      struct {
-        GrTextureClampMode_t s;
-        GrTextureClampMode_t t;
-      } texClampMode;
-      float texLodBiasValue;
-    } m_state;
 
   private:
     template <typename R, FxU32 N>

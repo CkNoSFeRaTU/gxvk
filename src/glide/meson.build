@@ -13,6 +13,7 @@ glide_common = [
   'glide_multithread.cpp',
   'glide_options.cpp',
   'glide_shaders.cpp',
+  'glide_splash.cpp',
   'glide_swapchain.cpp',
   'glide_texture.cpp',
   'glide_tmu.cpp',

@@ -68,6 +68,101 @@ namespace dxvk {
 
   using GlideDeviceDirtyFlags = Flags<GlideDeviceDirtyFlag>;
 
+  struct GlideState {
+    GrColor_t constantColor = 0xFFFFFFFF;
+    GrCullMode_t cullMode = GR_CULL_DISABLE;
+    GrDitherMode_t ditherMode = GR_DITHER_DISABLE;
+
+    std::array<
+      GlideTMU::TMUMetadata,
+      GLIDE_MAX_TEXTURESTAGES>      textures = {};
+
+    VkRect2D viewport = {};
+    VkRect2D scissor = {};
+    GrCmpFnc_t alphaTestFunction = GR_CMP_ALWAYS;
+    FxU8 alphaTestReference = 0;
+    std::array<DxvkGammaCp, NumControlPoints> gammaTable;
+    GlideVertexLayout vertexLayout = {};
+    struct {
+      GrCombineFunction_t function = GR_COMBINE_FUNCTION_LOCAL;
+      GrCombineFactor_t factor = GR_COMBINE_FACTOR_ONE;
+      GrCombineLocal_t local = GR_COMBINE_LOCAL_ITERATED;
+      GrCombineOther_t other = GR_COMBINE_OTHER_CONSTANT;
+      FxBool invert;
+    } alphaCombine = {};
+    struct {
+      GrAlphaBlendFnc_t dstAlpha = GR_BLEND_ONE;
+      GrAlphaBlendFnc_t dstColor = GR_BLEND_ZERO;
+      GrAlphaBlendFnc_t srcAlpha = GR_BLEND_ONE;
+      GrAlphaBlendFnc_t srcColor = GR_BLEND_ZERO;
+    } blend;
+    struct {
+      FxBool color = true;
+      FxBool alpha = true;
+    } colorMask = {};
+    struct {
+      GrCombineFunction_t function = GR_COMBINE_FUNCTION_SCALE_OTHER;
+      GrCombineFactor_t factor = GR_COMBINE_FACTOR_ONE;
+      GrCombineLocal_t local = GR_COMBINE_LOCAL_ITERATED;
+      GrCombineOther_t other = GR_COMBINE_OTHER_ITERATED;
+      FxBool invert;
+    } colorCombine = {};
+    GrChromakeyMode_t chromaMode = GR_CHROMAKEY_DISABLE;
+    GrColor_t chromaKeyLow = 0;
+    GrColor_t chromaKeyHigh = 0;
+    GrColorFormat_t colorFormat = GR_COLORFORMAT_ARGB;
+    glide3x::GrCoordinateSpaceMode_t coordinateSpace = glide3x::GR_WINDOW_COORDS;
+    FxI32 depthBiasLevel = 0;
+    GrCmpFnc_t depthFunction = GR_CMP_LESS;
+    FxBool depthMask = FXTRUE;
+    struct {
+      FxFloat n;
+      FxFloat f;
+    } depthRange = {};
+    struct {
+      glide3x::GrFogMode_t mode;
+      GrColor_t color;
+      FxFloat table[FOG_TABLE_ENTRIES_COUNT];
+    } fog;
+    struct {
+      struct {
+        GrCombineFunction_t alphaFunction;
+        GrCombineFactor_t alphaFactor;
+        FxBool alphaInvert;
+        GrCombineFunction_t colorFunction;
+        GrCombineFactor_t colorFactor;
+        FxBool colorInvert;
+      } texCombine;
+      struct {
+        FxI32 lodBias;
+        FxU8 scale;
+        float max;
+      } texDetailControl;
+      struct {
+        GrTextureFilterMode_t min;
+        GrTextureFilterMode_t mag;
+      } texFilterMode;
+      struct {
+        GrMipMapMode_t mode;
+        FxBool lodBlend;
+      } texMipMapMode;
+      struct {
+        GrTextureClampMode_t s;
+        GrTextureClampMode_t t;
+      } texClampMode;
+      float texLodBiasValue;
+    } tmu[GLIDE_MAX_TMU];
+    FxBool alphaLighting;
+    GrDepthBufferMode_t depthMode = GR_DEPTHBUFFER_DISABLE;
+    GrOriginLocation_t originLocation = GR_ORIGIN_UPPER_LEFT;
+    GrBuffer_t renderBuffer = GR_BUFFER_BACKBUFFER;
+    glide3x::GrStippleMode_t stippleMode = glide3x::GR_STIPPLE_DISABLE;
+    glide3x::GrStipplePattern_t stipplePattern = 0;
+    uint32_t stwhints = 0;
+    GrColor_t delta0Color = 0xFFFFFFFF;
+    FxBool delta0 = FXFALSE;
+  };
+
   class GlideDevice final {
     constexpr static VkDeviceSize StagingBufferSize = 4ull << 20;
   public:
@@ -102,6 +197,10 @@ namespace dxvk {
       return &m_hwConfiguration;
     }
 
+    FxU32 GetColorBufferCount() const {
+      return m_colorBuffers;
+    }
+
     FxU32 GlideStateSize() const {
       return sizeof(m_state);
     }
@@ -118,7 +217,7 @@ namespace dxvk {
     void BufferSwap(int swapInterval);
     void DrawLine(const void *v1, const void *v2);
     void DrawPoint(const void *pt);
-    void DrawTriangle(const void *a, const void *b, const void *c);
+    void DrawTriangle(const void *a, const void *b, const void *c, FxBool abAntialias = FXFALSE, FxBool bcAntialias = FXFALSE, FxBool caAntialias = FXFALSE);
     void DrawVertexArray(glide3x::GrDrawVertexArrayMode_t mode, FxU32 count, const void *pointers);
     void DrawVertexArrayContiguous(glide3x::GrDrawVertexArrayMode_t mode, FxU32 count, const void *pointers, FxU32 stride = 0);
     void DrawVertexArrayIndexed(glide3x::GrDrawVertexArrayMode_t mode, FxU32 count, const void *pointers, const void *indices, FxU32 stride = 0);
@@ -172,12 +271,13 @@ namespace dxvk {
       , glide3x::GrAspectRatio_t aspectRatioLog2
       , GrTextureFormat_t format);
     void SetViewport(FxI32 x, FxI32 y, FxU32 width, FxU32 height);
+    void ShowSplash(FxFloat x, FxFloat y, FxFloat width, FxFloat height, FxU32 frame);
 
     void SetVertexLayout(glide3x::GrVertexLayoutParam_t param, glide3x::GrVertexLayoutMode_t mode, glide3x::GrVertexLayoutOffset_t offset);
     FxU32 GetVertexLayoutSize() const;
 
-    void LoadVertexLayout(void *layout);
-    void SaveVertexLayout(const void *layout);
+    void GetVertexLayoutState(void *layout);
+    void SetVertexLayoutState(const void *layout);
 
     void GetState(void *state);
     void SetState(const void *state);
@@ -364,75 +464,11 @@ namespace dxvk {
       FxU32 height = 0;
       FxU32 refreshRate = 0;
     } m_screen;
+    FxBool logoShown = FXFALSE;
 
     Rc<GlideCommonTexture> m_rt = nullptr;
 
-    struct GlideState {
-      GrColor_t constantColor = 0xFFFFFFFF;
-      GrCullMode_t cullMode = GR_CULL_DISABLE;
-      GrDitherMode_t ditherMode = GR_DITHER_DISABLE;
-
-      std::array<
-        GlideTMU::TMUMetadata,
-        GLIDE_MAX_TEXTURESTAGES>      textures = {};
-
-      VkRect2D viewport = {};
-      VkRect2D scissor = {};
-      GrCmpFnc_t alphaTestFunction = GR_CMP_ALWAYS;
-      FxU8 alphaTestReference = 0;
-      std::array<DxvkGammaCp, NumControlPoints> gammaTable;
-      GlideVertexLayout vertexLayout = {};
-      struct {
-        GrCombineFunction_t function = GR_COMBINE_FUNCTION_LOCAL;
-        GrCombineFactor_t factor = GR_COMBINE_FACTOR_ONE;
-        GrCombineLocal_t local = GR_COMBINE_LOCAL_ITERATED;
-        GrCombineOther_t other = GR_COMBINE_OTHER_CONSTANT;
-        FxBool invert;
-      } alphaCombine = {};
-      struct {
-        GrAlphaBlendFnc_t dstAlpha = GR_BLEND_ONE;
-        GrAlphaBlendFnc_t dstColor = GR_BLEND_ZERO;
-        GrAlphaBlendFnc_t srcAlpha = GR_BLEND_ONE;
-        GrAlphaBlendFnc_t srcColor = GR_BLEND_ZERO;
-      } blend;
-      struct {
-        FxBool color = true;
-        FxBool alpha = true;
-      } colorMask = {};
-      struct {
-        GrCombineFunction_t function = GR_COMBINE_FUNCTION_SCALE_OTHER;
-        GrCombineFactor_t factor = GR_COMBINE_FACTOR_ONE;
-        GrCombineLocal_t local = GR_COMBINE_LOCAL_ITERATED;
-        GrCombineOther_t other = GR_COMBINE_OTHER_ITERATED;
-        FxBool invert;
-      } colorCombine = {};
-      GrChromakeyMode_t chromaMode = GR_CHROMAKEY_DISABLE;
-      GrColor_t chromaKeyLow = 0;
-      GrColor_t chromaKeyHigh = 0;
-      GrColorFormat_t colorFormat = GR_COLORFORMAT_ARGB;
-      glide3x::GrCoordinateSpaceMode_t coordinateSpace = glide3x::GR_WINDOW_COORDS;
-      FxI32 depthBiasLevel = 0;
-      GrCmpFnc_t depthFunction = GR_CMP_LESS;
-      FxBool depthMask = FXTRUE;
-      struct {
-        FxFloat n;
-        FxFloat f;
-      } depthRange = {};
-      struct {
-        glide3x::GrFogMode_t mode;
-        GrColor_t color;
-        FxFloat table[FOG_TABLE_ENTRIES_COUNT];
-      } fog;
-      FxBool alphaLighting;
-      GrDepthBufferMode_t depthMode = GR_DEPTHBUFFER_DISABLE;
-      GrOriginLocation_t originLocation = GR_ORIGIN_UPPER_LEFT;
-      GrBuffer_t renderBuffer = GR_BUFFER_BACKBUFFER;
-      glide3x::GrStippleMode_t stippleMode = glide3x::GR_STIPPLE_DISABLE;
-      glide3x::GrStipplePattern_t stipplePattern = 0;
-      uint32_t stwhints = 0;
-      GrColor_t delta0Color = 0xFFFFFFFF;
-      FxBool delta0 = FXFALSE;
-    } m_state;
+    GlideState                     m_state;
     constexpr static uint32_t      SamplerCountBits = 12u;
     std::atomic<uint64_t>          m_lastSamplerStats = { 0u };
     uint64_t                       m_samplerBindCount = 0u;
@@ -440,6 +476,7 @@ namespace dxvk {
     std::atomic<uint32_t>          m_stateLastID = { 0u };
     std::unordered_map<int, GlideVertex> m_vertexLayouts;
     std::unordered_map<int, GlideState> m_states;
+    FxBool                         m_ignoreGetSetState = FXFALSE;
   };
 
 }

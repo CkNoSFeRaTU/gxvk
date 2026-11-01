@@ -159,7 +159,7 @@ namespace glide3x {
 
   typedef struct {
     FxU32               width, height;
-    FxI32               small_lod, large_lod;
+    GrLOD_t             small_lod, large_lod;
     GrAspectRatio_t     aspect_ratio;
     GrTextureFormat_t   format;
   } Gu3dfHeader;

@@ -1423,22 +1423,43 @@ namespace dxvk {
     /* Glide GAMES                                */
     /**********************************************/
 
+    /* Earth 2150 : Escape from the Blue Planet   *
+     * Runaway animation speed above 20 FPS       */
+    { R"(\\Earth2150\.exe$)", {{
+      { "glide.autoGenMipMaps",             "True" },
+      { "glide.maxFrameRate",                "-30" },
+    }} },
+    /* Earth 2150: The Moon Project               *
+     * Runaway animation speed above 20 FPS       */
+    { R"(\\TheMoonProject\.exe$)", {{
+      { "glide.autoGenMipMaps",             "True" },
+      { "glide.maxFrameRate",                "-30" },
+    }} },
+    /* Earth 2150: Lost Souls                     *
+     * Runaway animation speed above 20 FPS       */
+    { R"(\\LostSouls\.exe$)", {{
+      { "glide.autoGenMipMaps",             "True" },
+      { "glide.maxFrameRate",                "-30" },
+    }} },
     /* Metal fatigue.                             *
        Depth precision issues                     */
     { R"(\\MFatigue\.exe$)", {{
       { "glide.useDepthFormat",                "1" },
     }} },
-
     /* Need for Speed: Porsche Unleashed.         *
        Has broken mipmaps                         */
     { R"(\\(Porsche|nfs5)\.exe$)", {{
       { "glide.autoGenMipMaps",             "True" },
     }} },
-
+    /* POD: Planet of Death.                      *
+       Wants original voodoo or rush card         */
+    { R"(\\(podx3dfx|wpod3dfx)\.exe$)", {{
+      { "glide.card",                     "voodoo" },
+    }} },
     /* X-Com Enforcer.                            *
        Has issues with choosing correct palette   */
     { R"(\\System\\XCom\.exe$)", {{
-      { "glide.perTMUTables",             "False" },
+      { "glide.perTMUTables",              "False" },
     }} },
   };
 

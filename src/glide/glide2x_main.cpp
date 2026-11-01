@@ -9,7 +9,7 @@
 namespace dxvk {
   Logger Logger::s_instance("glide2x.log");
   static GlideDevice *glideDevice = nullptr;
-  constexpr char GlideVersion[80] = "2.43";
+  constexpr char GlideVersion[80] = "2.60";
 
   static inline void initDXVKDevice () {
     if (glideDevice != nullptr)
@@ -570,8 +570,13 @@ extern "C" {
     DEBUGLOG("stub: grResetTriStats");
   }
 
-  DLLEXPORT void __stdcall grSplash(float x, float y, float width, float height, FxU32 frame) {
-    DEBUGLOG("stub: grSplash");
+  DLLEXPORT void __stdcall grSplash(FxFloat x, FxFloat y, FxFloat width, FxFloat height, FxU32 frame) {
+    DEBUGLOG(">>> grSplash");
+
+    if (unlikely(glideDevice == nullptr))
+      return;
+
+    glideDevice->ShowSplash(x, y, width, height, frame);
   }
 
   DLLEXPORT void __stdcall grSstConfigPipeline(GrChipID_t chip, GrSstRegister reg, FxU32 value) {
@@ -646,7 +651,9 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grSstResetPerfStats(void) {
-    DEBUGLOG("stub: grSstResetPerfStats");
+    DEBUGLOG(">>> grSstResetPerfStats");
+
+    // TODO: support stats?
   }
 
   DLLEXPORT FxU32 __stdcall grSstScreenHeight(void) {
@@ -691,7 +698,10 @@ extern "C" {
   }
 
   DLLEXPORT FxBool __stdcall grSstVRetraceOn(void) {
-    DEBUGLOG("stub: grSstVRetraceOn");
+    DEBUGLOG(">> grSstVRetraceOn");
+
+    // we are not in CRT days, no retrace
+
     return FXFALSE;
   }
 
@@ -700,7 +710,10 @@ extern "C" {
   }
 
   DLLEXPORT FxU32 __stdcall grSstVideoLine(void) {
-    DEBUGLOG("stub: grSstVideoLine");
+    DEBUGLOG(">>> grSstVideoLine");
+
+    // we are not in CRT days, beam is always 0,0
+
     return 0;
   }
 
@@ -725,9 +738,6 @@ extern "C" {
       return FXFALSE;
 
     HWND m_hWnd = reinterpret_cast<HWND>(hWnd);
-    if (m_hWnd == nullptr)
-      m_hWnd = GetActiveWindow();
-
     return glideDevice->WindowOpen(m_hWnd, resolution, refreshRate, colorFormat, originLocation, nColBuffers, nAuxBuffers);
   }
 
@@ -847,19 +857,19 @@ extern "C" {
       if (unlikely(TMU == nullptr))
         return;
 
-      TMU->SetTable(type, data, 0, 0);
+      TMU->SetTable(type, data);
     } else {
       Rc<GlideTMU> TMU = glideDevice->GetTMU(GR_TMU0);
       if (unlikely(TMU != nullptr))
-        TMU->SetTable(type, data, 0, 0);
+        TMU->SetTable(type, data);
 
       TMU = glideDevice->GetTMU(GR_TMU1);
       if (unlikely(TMU != nullptr))
-        TMU->SetTable(type, data, 0, 0);
+        TMU->SetTable(type, data);
 
       TMU = glideDevice->GetTMU(GR_TMU2);
       if (unlikely(TMU != nullptr))
-        TMU->SetTable(type, data, 0, 0);
+        TMU->SetTable(type, data);
     }
   }
 

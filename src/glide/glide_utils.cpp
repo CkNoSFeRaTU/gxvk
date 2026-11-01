@@ -238,10 +238,11 @@ namespace dxvk {
         else
           currentSize = height * width * blockSize;
 
-          if (round) {
-            currentSize += SST1_TEXTURE_ALIGN_MASK << 3;
-            currentSize &= ~(SST1_TEXTURE_ALIGN_MASK << 3);
-          }
+        // round up to SST1 boundary
+        if (round) {
+          currentSize += SST1_TEXTURE_ALIGN_MASK << 3;
+          currentSize &= ~(SST1_TEXTURE_ALIGN_MASK << 3);
+        }
 
         if (offsets != nullptr) {
           GlideMipMapOffset offset;
@@ -901,7 +902,7 @@ namespace dxvk {
           }
           case GR_FMT_ARGB_4444: {
             for (uint32_t x = region.offset.x; x < region.extent.width; ++x) {
-              reinterpret_cast<uint16_t*>(dst)[x] = (a / 0x11 << 12) | ((r / 0x11) << 8) | ((g / 0x11) << 4) | (b / 0x11);
+              reinterpret_cast<uint16_t*>(dst)[x] = ((a / 0x11) << 12) | ((r / 0x11) << 8) | ((g / 0x11) << 4) | (b / 0x11);
             }
             break;
           }
@@ -988,7 +989,7 @@ namespace dxvk {
               const uint8_t g = src[idxSrc + 1];
               const uint8_t b = src[idxSrc + 2];
               const uint8_t a = src[idxSrc + 3];
-              reinterpret_cast<uint16_t*>(dst)[x] = (a / 0x11 << 12) | ((r / 0x11) << 8) | ((g / 0x11) << 4) | (b / 0x11);
+              reinterpret_cast<uint16_t*>(dst)[x] = ((a / 0x11) << 12) | ((r / 0x11) << 8) | ((g / 0x11) << 4) | (b / 0x11);
             }
             break;
           }

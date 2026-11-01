@@ -46,8 +46,6 @@ constexpr FxI32 NAPALM_ZDEPTHVALUE_NEAREST = 0xFFFFFF;
 constexpr FxI32 NAPALM_WDEPTHVALUE_FARTHEST = 0xFFFFFF;
 constexpr float GLIDE_FPBIAS = 786432.875;
 
-typedef void (*GrErrorCallbackFnc_t)(const char *string, FxBool fatal);
-
 typedef FxU32 GrColor_t;
 typedef FxU8  GrAlpha_t;
 typedef FxU32 GrMipMapId_t;
@@ -427,7 +425,6 @@ enum GrTextureFormat_t : FxI32 {
   GR_TEXFMT_ARGB_CMP_DXT4 = 0x19,
   GR_TEXFMT_ARGB_CMP_DXT5 = 0x1A,
   GR_TEXFMT_RGB_888 = 0xFF,
-
 };
 
 enum GrTexTable_t : FxU32 {
@@ -806,3 +803,9 @@ typedef struct {
     FxU32              sizeInBytes;
     PciIOFlag          rwFlag;
 } PciRegister;
+
+typedef FxBool __stdcall (*GrSplashInitProc)(FxU32 hWnd, FxU32 screenWidth, FxU32 screenHeight, FxU32 numColBuf, FxU32 numAuxBuf, GrColorFormat_t colorFormat);
+typedef void __stdcall (*GrSplashShutdownProc)(void);
+typedef void __stdcall (*GrSplashProc)(float x, float y, float w, float h, FxU32 frameNumber);
+typedef const void* __stdcall (*GrSplashPlugProc)(FxU32* w, FxU32* h, FxI32* strideInBytes, GrLfbWriteMode_t* format);
+typedef void __stdcall (*GrErrorCallbackFnc_t)(const char *string, FxBool fatal);

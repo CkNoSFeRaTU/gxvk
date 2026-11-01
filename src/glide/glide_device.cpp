@@ -4,6 +4,7 @@
 #include "../wsi/wsi_window.h"
 
 #include "glide_device.h"
+#include "glide_splash.h"
 #include "glide_texture.h"
 #include "glide_utils.h"
 
@@ -130,7 +131,30 @@ namespace dxvk {
       m_screen.refreshRate = 60;
     }
 
-    DEBUGLOG(str::format("Requested resolution: ", m_screen.width, "x", m_screen.height, "@", m_screen.refreshRate));
+    DEBUGLOG(str::format("Requested resolution: ", m_screen.width, "x", m_screen.height, "@", m_screen.refreshRate, ", origin: ", originLocation));
+
+    if (unlikely(!hWnd)) {
+      Logger::warn("No window passed, trying to found one...");
+      hWnd = GetActiveWindow();
+      if (unlikely(!hWnd)) {
+        Logger::warn("No window found, trying to create one...");
+        HINSTANCE hInstance = GetModuleHandle(NULL);
+        const char className[] = "GXVK";
+        WNDCLASSA wc = {};
+        wc.lpfnWndProc   = DefWindowProcA;
+        wc.hInstance     = hInstance;
+        wc.lpszClassName = className;
+        wc.hCursor       = LoadCursor(NULL, IDC_ARROW);
+        RegisterClassA(&wc);
+
+        hWnd = CreateWindowExA(WS_EX_APPWINDOW, className, "GXVK", WS_POPUP | WS_VISIBLE, 0, 0, 640, 480, nullptr, nullptr, nullptr, nullptr);
+        if (!hWnd) {
+          Logger::err("Failed to create a window :-(");
+          exit(0);
+        }
+        SetFocus(hWnd);
+      }
+    }
 
     SetColorFormat(colorFormat);
     SetOriginLocation(originLocation);
@@ -153,7 +177,6 @@ namespace dxvk {
     desc.RefreshRate = m_screen.refreshRate;
     desc.BufferCount = m_colorBuffers;
     desc.AuxBufferCount = m_auxBuffers;
-    desc.ColorFormat = GetColorFormat();
 
     wsi::WsiMode mode;
     if (m_glideOptions.useMonitorResolution && wsi::getCurrentDisplayMode(monitor, &mode)) {
@@ -201,6 +224,10 @@ namespace dxvk {
     SynchronizeCsThread(DxvkCsThread::SynchronizeAll);
 
     m_swapchain->BufferSwap();
+
+    if (unlikely(!m_glideOptions.noSplash && !std::exchange(logoShown, FXTRUE))) {
+      ShowSplash(m_state.viewport.offset.x, m_state.viewport.offset.y,  m_state.viewport.extent.width, m_state.viewport.extent.height, 0);
+    }
 
     return FXTRUE;
   }
@@ -441,7 +468,7 @@ namespace dxvk {
       cMode = mode,
       cWriteMask = writeMask
     ] (DxvkContext* ctx) {
-      for (uint32_t i = 0; i < 4; i++) {
+      for (uint32_t i = 0; i < GLIDE_MAX_TEXTURESTAGES; i++) {
         DxvkBlendMode mode = cMode;
         mode.setWriteMask(cWriteMask);
         mode.normalize();
@@ -498,7 +525,10 @@ namespace dxvk {
     rsState.setSampleCount(VkSampleCountFlags(VK_SAMPLE_COUNT_1_BIT));
     rsState.setCullMode(UtilCullModeVKCullModeFlags(m_state.cullMode));
     rsState.setConservativeMode(VK_CONSERVATIVE_RASTERIZATION_MODE_DISABLED_EXT);
-    rsState.setLineMode(VK_LINE_RASTERIZATION_MODE_DEFAULT);
+    rsState.setLineMode(VK_LINE_RASTERIZATION_MODE_DEFAULT_EXT);
+    const auto& features = m_device->features();
+    if (features.extLineRasterization.smoothLines)
+      rsState.setLineMode(VK_LINE_RASTERIZATION_MODE_RECTANGULAR_SMOOTH_EXT);
     rsState.setPolygonMode(VK_POLYGON_MODE_FILL);
     rsState.setFlatShading(false);
 
@@ -522,7 +552,7 @@ namespace dxvk {
     size_t mipmaps = imageView->imageSubresources().levelCount;
 
     EmitCs([this,
-      cTMUState   = m_tmu[tmu]->m_state,
+      cTMUState   = m_state.tmu[tmu],
       cMipMaps    = mipmaps,
       cSlot       = tmu,
       cView       = std::move(imageView),
@@ -540,8 +570,6 @@ namespace dxvk {
         UtilGlideClampToVKSamplerAddressMode(cTMUState.texClampMode.s),
         UtilGlideClampToVKSamplerAddressMode(cTMUState.texClampMode.t),
         VK_SAMPLER_ADDRESS_MODE_REPEAT);
-
-      key.setDepthCompare(true, VK_COMPARE_OP_LESS_OR_EQUAL);
 
       if (cView)
         key.setViewProperties(cView->info().unpackSwizzle(), cView->info().format);
@@ -724,23 +752,23 @@ namespace dxvk {
       memcpy(data->fogIndexToW, glideFogIndexToW, sizeof(glideFogIndexToW));
 
       for (int idx = 0; idx < std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES); idx++) {
-        const Rc<GlideTMU>& tmu = m_tmu[idx];
+        const auto& TMUState = m_state.tmu[idx];
 
         uint32_t& combinerTMU = data->Stages[idx].combinerTMU;
-        FxI32 fnc = tmu->m_state.texCombine.alphaFunction;
+        FxI32 fnc = TMUState.texCombine.alphaFunction;
         // There is 0x0A - 0x0F hole, so rebind last 0x10 to 0x0A
-        if (tmu->m_state.texCombine.alphaFunction == GR_COMBINE_FUNCTION_SCALE_MINUS_LOCAL_ADD_LOCAL_ALPHA)
+        if (TMUState.texCombine.alphaFunction == GR_COMBINE_FUNCTION_SCALE_MINUS_LOCAL_ADD_LOCAL_ALPHA)
           fnc = 0x0A;
         combinerTMU = (fnc & 0x0F);
         // Similarly rebind last 0x10 to 0x0A
-        fnc = tmu->m_state.texCombine.colorFunction;
-        if (tmu->m_state.texCombine.colorFunction == GR_COMBINE_FUNCTION_SCALE_MINUS_LOCAL_ADD_LOCAL_ALPHA)
+        fnc = TMUState.texCombine.colorFunction;
+        if (TMUState.texCombine.colorFunction == GR_COMBINE_FUNCTION_SCALE_MINUS_LOCAL_ADD_LOCAL_ALPHA)
           fnc = 0x0A;
         combinerTMU |= (fnc & 0x0F) << 4;
-        combinerTMU |= (tmu->m_state.texCombine.alphaFactor & 0x0F) << 8;
-        combinerTMU |= (tmu->m_state.texCombine.colorFactor & 0x0F) << 12;
-        combinerTMU |= (tmu->m_state.texCombine.alphaInvert & 0x01) << 16;
-        combinerTMU |= (tmu->m_state.texCombine.colorInvert & 0x01) << 17;
+        combinerTMU |= (TMUState.texCombine.alphaFactor & 0x0F) << 8;
+        combinerTMU |= (TMUState.texCombine.colorFactor & 0x0F) << 12;
+        combinerTMU |= (TMUState.texCombine.alphaInvert & 0x01) << 16;
+        combinerTMU |= (TMUState.texCombine.colorInvert & 0x01) << 17;
       }
     }
 
@@ -757,14 +785,10 @@ namespace dxvk {
       return;
     }
 
-    float depthBias = bit::cast<float>(m_state.depthBiasLevel);
-
     DxvkDepthBias biases;
-    if (unlikely(m_state.depthMode == GR_DEPTHBUFFER_WBUFFER_COMPARE_TO_BIAS || m_state.depthMode == GR_DEPTHBUFFER_ZBUFFER_COMPARE_TO_BIAS))
-      biases.depthBiasConstant = depthBias / static_cast<float>(SST1_ZDEPTHVALUE_NEAREST);
-    else
-      biases.depthBiasConstant = 0.0f;
+    biases.depthBiasConstant = 0.0f;
     biases.depthBiasClamp    = 0.0f;
+    biases.depthBiasSlope    = 0.0f;
 
     DxvkDepthBounds bounds;
     bounds.minDepthBounds = m_state.depthRange.f / static_cast<float>(SST1_ZDEPTHVALUE_NEAREST);
@@ -818,6 +842,8 @@ namespace dxvk {
 
   void GlideDevice::UpdatePushData() {
     if (m_dirty.test(GlideDeviceDirtyFlag::PushDataShared)) {
+      m_dirty.clr(GlideDeviceDirtyFlag::PushDataShared);
+
       if (m_api == GLIDEAPI::API_GLIDE_3X) {
         m_pushData.shared.flags = 0;
         if (m_state.vertexLayout.TestParam(glide3x::GR_PARAM_Q0))
@@ -864,6 +890,7 @@ namespace dxvk {
     }
 
     if (m_dirty.test(GlideDeviceDirtyFlag::PushDataFfps)) {
+      m_dirty.clr(GlideDeviceDirtyFlag::PushDataFfps);
       DEBUGLOG(str::format("pixelFxCombiner pushData: "
                                  , "alphaCombine.function - ", m_state.alphaCombine.function, ", "
                                  , "colorCombine.function - ", m_state.colorCombine.function, ", "
@@ -902,19 +929,16 @@ namespace dxvk {
 
       m_pushData.ffps.flags = 0;
       if (m_state.alphaLighting)
-        m_pushData.ffps.flags = FXBIT(0);
+        m_pushData.ffps.flags |= FXBIT(0);
       if (m_state.colorMask.color)
-        m_pushData.ffps.flags = FXBIT(1);
+        m_pushData.ffps.flags |= FXBIT(1);
       if (m_state.colorMask.alpha)
-        m_pushData.ffps.flags = FXBIT(2);
+        m_pushData.ffps.flags |= FXBIT(2);
       if (m_state.delta0)
-        m_pushData.ffps.flags = FXBIT(3);
+        m_pushData.ffps.flags |= FXBIT(3);
 
       UpdatePushDataBlock(m_pushData.ffps);
     }
-
-    m_dirty.clr(GlideDeviceDirtyFlag::PushDataShared,
-                GlideDeviceDirtyFlag::PushDataFfps);
   }
 
   void GlideDevice::Reset() {
@@ -934,7 +958,7 @@ namespace dxvk {
     m_state.colorCombine.function = GR_COMBINE_FUNCTION_SCALE_OTHER;
     m_state.colorCombine.local = GR_COMBINE_LOCAL_ITERATED;
     m_state.colorCombine.other = GR_COMBINE_OTHER_ITERATED;
-    m_state.colorCombine.invert = false;
+    m_state.colorCombine.invert = FXFALSE;
     m_state.colorMask.alpha = FXFALSE;
     m_state.colorMask.color = FXTRUE;
     m_state.chromaKeyLow = 0;
@@ -972,25 +996,25 @@ namespace dxvk {
     }
 
     for (int idx = 0; idx < m_boardConfiguration.tmuCount; idx++) {
-      const auto& TMU = m_tmu[idx];
+      auto& TMUState = m_state.tmu[idx];
       if (idx < GLIDE_MAX_TEXTURESTAGES)
         m_state.textures[idx].startAddress = GLIDE_NO_TEXTURE;
-      TMU->m_state.texClampMode.s = GR_TEXTURECLAMP_CLAMP;
-      TMU->m_state.texClampMode.t = GR_TEXTURECLAMP_CLAMP;
-      TMU->m_state.texCombine.alphaFactor = GR_COMBINE_FACTOR_ONE;
-      TMU->m_state.texCombine.alphaFunction = GR_COMBINE_FUNCTION_LOCAL;
-      TMU->m_state.texCombine.alphaInvert = FXFALSE;
-      TMU->m_state.texCombine.colorFactor = GR_COMBINE_FACTOR_ONE;
-      TMU->m_state.texCombine.colorFunction = GR_COMBINE_FUNCTION_LOCAL;
-      TMU->m_state.texCombine.colorInvert = FXFALSE;
-      TMU->m_state.texDetailControl.lodBias = 0;
-      TMU->m_state.texDetailControl.scale = 1;
-      TMU->m_state.texDetailControl.max = 1.0f;
-      TMU->m_state.texFilterMode.min = GR_TEXTUREFILTER_POINT_SAMPLED;
-      TMU->m_state.texFilterMode.mag = GR_TEXTUREFILTER_POINT_SAMPLED;
-      TMU->m_state.texLodBiasValue = 0.0f;
-      TMU->m_state.texMipMapMode.lodBlend = FXFALSE;
-      TMU->m_state.texMipMapMode.mode = GR_MIPMAP_DISABLE;
+      TMUState.texClampMode.s = GR_TEXTURECLAMP_CLAMP;
+      TMUState.texClampMode.t = GR_TEXTURECLAMP_CLAMP;
+      TMUState.texCombine.alphaFactor = GR_COMBINE_FACTOR_ONE;
+      TMUState.texCombine.alphaFunction = GR_COMBINE_FUNCTION_LOCAL;
+      TMUState.texCombine.alphaInvert = FXFALSE;
+      TMUState.texCombine.colorFactor = GR_COMBINE_FACTOR_ONE;
+      TMUState.texCombine.colorFunction = GR_COMBINE_FUNCTION_LOCAL;
+      TMUState.texCombine.colorInvert = FXFALSE;
+      TMUState.texDetailControl.lodBias = 0;
+      TMUState.texDetailControl.scale = 1;
+      TMUState.texDetailControl.max = 1.0f;
+      TMUState.texFilterMode.min = GR_TEXTUREFILTER_POINT_SAMPLED;
+      TMUState.texFilterMode.mag = GR_TEXTUREFILTER_POINT_SAMPLED;
+      TMUState.texLodBiasValue = 0.0f;
+      TMUState.texMipMapMode.lodBlend = FXFALSE;
+      TMUState.texMipMapMode.mode = GR_MIPMAP_DISABLE;
     }
 
     m_dirty.set(
@@ -1188,7 +1212,7 @@ namespace dxvk {
     });
   }
 
-  void GlideDevice::DrawTriangle(const void *a, const void *b, const void *c) {
+  void GlideDevice::DrawTriangle(const void *a, const void *b, const void *c, FxBool abAntialias, FxBool bcAntialias, FxBool caAntialias) {
     GlideDeviceLock lock = LockDevice();
 
     if (unlikely(a == nullptr || b == nullptr || c == nullptr))
@@ -1490,7 +1514,7 @@ namespace dxvk {
   }
 
   void GlideDevice::SetChromaKeyMode(GrChromakeyMode_t mode) {
-    if (m_specData.chromaMode != static_cast<uint32_t>(mode)) {
+    if (m_state.chromaMode != mode) {
       m_state.chromaMode = mode;
       m_dirty.set(GlideDeviceDirtyFlag::SpecializationEntries);
     }
@@ -1846,26 +1870,25 @@ namespace dxvk {
   }
 
   void GlideDevice::SetTexCombine(GrChipID_t tmu, GrCombineFunction_t rgb_function, GrCombineFactor_t rgb_factor, GrCombineFunction_t alpha_function, GrCombineFactor_t alpha_factor, FxBool rgb_invert, FxBool alpha_invert) {
-    Rc<GlideTMU> TMU = GetTMU(tmu);
-    if (unlikely(TMU == nullptr))
+    if (unlikely(tmu >= std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES)))
       return;
 
-    if (TMU->m_state.texCombine.colorFunction != rgb_function || TMU->m_state.texCombine.colorFactor != rgb_factor ||
-        TMU->m_state.texCombine.colorInvert != rgb_invert || TMU->m_state.texCombine.alphaFunction != alpha_function ||
-        TMU->m_state.texCombine.alphaFactor != alpha_factor || TMU->m_state.texCombine.alphaInvert != alpha_invert) {
-      TMU->m_state.texCombine.colorFunction = rgb_function;
-      TMU->m_state.texCombine.colorFactor = rgb_factor;
-      TMU->m_state.texCombine.colorInvert = rgb_invert;
-      TMU->m_state.texCombine.alphaFunction = alpha_function;
-      TMU->m_state.texCombine.alphaFactor = alpha_factor;
-      TMU->m_state.texCombine.alphaInvert = alpha_invert;
+    auto& TMUState = m_state.tmu[tmu];
+    if (TMUState.texCombine.colorFunction != rgb_function || TMUState.texCombine.colorFactor != rgb_factor ||
+        TMUState.texCombine.colorInvert != rgb_invert || TMUState.texCombine.alphaFunction != alpha_function ||
+        TMUState.texCombine.alphaFactor != alpha_factor || TMUState.texCombine.alphaInvert != alpha_invert) {
+      TMUState.texCombine.colorFunction = rgb_function;
+      TMUState.texCombine.colorFactor = rgb_factor;
+      TMUState.texCombine.colorInvert = rgb_invert;
+      TMUState.texCombine.alphaFunction = alpha_function;
+      TMUState.texCombine.alphaFactor = alpha_factor;
+      TMUState.texCombine.alphaInvert = alpha_invert;
       m_dirty.set(GlideDeviceDirtyFlag::SharedPixelShaderData);
     }
   }
 
   void GlideDevice::SetTexCombineFunction(GrChipID_t tmu, GrTextureCombineFnc_t fnc) {
-    Rc<GlideTMU> TMU = GetTMU(tmu);
-    if (unlikely(TMU == nullptr))
+    if (unlikely(tmu >= std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES)))
       return;
 
     GrCombineFunction_t alphaFunction, colorFunction;
@@ -1965,77 +1988,82 @@ namespace dxvk {
         return;
     }
 
-    if (TMU->m_state.texCombine.alphaFactor != alphaFactor || TMU->m_state.texCombine.alphaFunction != alphaFunction ||
-        TMU->m_state.texCombine.alphaInvert != alphaInvert || TMU->m_state.texCombine.colorFactor != colorFactor ||
-        TMU->m_state.texCombine.colorFunction != colorFunction || TMU->m_state.texCombine.colorInvert != colorInvert) {
-      TMU->m_state.texCombine.alphaFactor = alphaFactor;
-      TMU->m_state.texCombine.alphaFunction = alphaFunction;
-      TMU->m_state.texCombine.alphaInvert = alphaInvert;
-      TMU->m_state.texCombine.colorFactor = colorFactor;
-      TMU->m_state.texCombine.colorFunction = colorFunction;
-      TMU->m_state.texCombine.colorInvert = colorInvert;
+    auto& TMUState = m_state.tmu[tmu];
+    if (TMUState.texCombine.alphaFactor != alphaFactor || TMUState.texCombine.alphaFunction != alphaFunction ||
+        TMUState.texCombine.alphaInvert != alphaInvert || TMUState.texCombine.colorFactor != colorFactor ||
+        TMUState.texCombine.colorFunction != colorFunction || TMUState.texCombine.colorInvert != colorInvert) {
+      TMUState.texCombine.alphaFactor = alphaFactor;
+      TMUState.texCombine.alphaFunction = alphaFunction;
+      TMUState.texCombine.alphaInvert = alphaInvert;
+      TMUState.texCombine.colorFactor = colorFactor;
+      TMUState.texCombine.colorFunction = colorFunction;
+      TMUState.texCombine.colorInvert = colorInvert;
       m_dirty.set(GlideDeviceDirtyFlag::SharedPixelShaderData);
     }
   }
 
   void GlideDevice::SetTexClampMode(GrChipID_t tmu, GrTextureClampMode_t s_clampmode, GrTextureClampMode_t t_clampmode) {
-    Rc<GlideTMU> TMU = GetTMU(tmu);
-    if (unlikely(TMU == nullptr))
+    if (unlikely(tmu >= std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES)))
       return;
 
-    if (TMU->m_state.texClampMode.s != s_clampmode || TMU->m_state.texClampMode.t != t_clampmode) {
-      TMU->m_state.texClampMode.s = s_clampmode;
-      TMU->m_state.texClampMode.t = t_clampmode;
+    auto& TMUState = m_state.tmu[tmu];
+    if (TMUState.texClampMode.s != s_clampmode || TMUState.texClampMode.t != t_clampmode) {
+      TMUState.texClampMode.s = s_clampmode;
+      TMUState.texClampMode.t = t_clampmode;
       m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
     }
   }
 
   void GlideDevice::SetTexDetailControl(GrChipID_t tmu, FxI32 lod_bias, FxU8 detail_scale, FxFloat detail_max) {
-    Rc<GlideTMU> TMU = GetTMU(tmu);
-    if (unlikely(TMU == nullptr))
+    if (unlikely(tmu >= std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES)))
       return;
 
-    if (TMU->m_state.texDetailControl.lodBias != lod_bias || TMU->m_state.texDetailControl.scale != detail_scale || TMU->m_state.texDetailControl.max != detail_max) {
-      TMU->m_state.texDetailControl.lodBias = lod_bias;
-      TMU->m_state.texDetailControl.scale = detail_scale;
-      TMU->m_state.texDetailControl.max = detail_max;
+    auto& TMUState = m_state.tmu[tmu];
+    if (TMUState.texDetailControl.lodBias != lod_bias || TMUState.texDetailControl.scale != detail_scale || TMUState.texDetailControl.max != detail_max) {
+      TMUState.texDetailControl.lodBias = lod_bias;
+      TMUState.texDetailControl.scale = detail_scale;
+      TMUState.texDetailControl.max = detail_max;
 
       // TODO
+      static bool sWarnShown = false;
+      if (!std::exchange(sWarnShown, true))
+        Logger::warn(str::format("Texture detail is not supported!"));
+
       // m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
     }
   }
 
   void GlideDevice::SetTexFilterMode(GrChipID_t tmu, GrTextureFilterMode_t minfilter_mode, GrTextureFilterMode_t magfilter_mode) {
-    Rc<GlideTMU> TMU = GetTMU(tmu);
-    if (unlikely(TMU == nullptr))
+    if (unlikely(tmu >= std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES)))
       return;
 
-    if (TMU->m_state.texFilterMode.min != minfilter_mode || TMU->m_state.texFilterMode.mag != magfilter_mode) {
-      TMU->m_state.texFilterMode.min = minfilter_mode;
-      TMU->m_state.texFilterMode.mag = magfilter_mode;
+    auto& TMUState = m_state.tmu[tmu];
+    if (TMUState.texFilterMode.min != minfilter_mode || TMUState.texFilterMode.mag != magfilter_mode) {
+      TMUState.texFilterMode.min = minfilter_mode;
+      TMUState.texFilterMode.mag = magfilter_mode;
       m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
     }
   }
 
   void GlideDevice::SetTexLodBiasValue(GrChipID_t tmu, FxFloat bias) {
-    Rc<GlideTMU> TMU = GetTMU(tmu);
-    if (unlikely(TMU == nullptr))
+    if (unlikely(tmu >= std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES)))
       return;
 
-    if (TMU->m_state.texLodBiasValue != bias) {
-      TMU->m_state.texLodBiasValue = bias;
+    auto& TMUState = m_state.tmu[tmu];
+    if (TMUState.texLodBiasValue != bias) {
+      TMUState.texLodBiasValue = bias;
       m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
     }
   }
 
   void GlideDevice::SetTexMipMapMode(GrChipID_t tmu, GrMipMapMode_t mode, FxBool lodBlend) {
-    Rc<GlideTMU> TMU = GetTMU(tmu);
-    if (unlikely(TMU == nullptr))
+    if (unlikely(tmu >= std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES)))
       return;
 
-    if (TMU->m_state.texMipMapMode.mode != mode || TMU->m_state.texMipMapMode.lodBlend != lodBlend) {
-      TMU->m_state.texMipMapMode.mode = mode;
-      TMU->m_state.texMipMapMode.lodBlend = lodBlend;
+    auto& TMUState = m_state.tmu[tmu];
+    if (TMUState.texMipMapMode.mode != mode || TMUState.texMipMapMode.lodBlend != lodBlend) {
+      TMUState.texMipMapMode.mode = mode;
+      TMUState.texMipMapMode.lodBlend = lodBlend;
       m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
     }
   }
@@ -2074,6 +2102,48 @@ namespace dxvk {
     }
   }
 
+  void GlideDevice::ShowSplash(FxFloat x, FxFloat y, FxFloat width, FxFloat height, FxU32 frame) {
+    if (m_api == GLIDEAPI::API_GLIDE_1X) {
+      doSplash(this, x, y, width, height, frame);
+      return;
+    }
+
+    const char *splashLibraryName = "3DfxSpl2.dll";
+    if (m_api == GLIDEAPI::API_GLIDE_3X)
+      splashLibraryName = "3DfxSpl3.dll";
+
+    HMODULE splashLibrary = LoadLibrary(splashLibraryName);
+    if (splashLibrary != nullptr) {
+      GrSplashProc fxSplash = (GrSplashProc)GetProcAddress(splashLibrary, "_fxSplash@20");
+      GrSplashInitProc fxSplashInit = (GrSplashInitProc)GetProcAddress(splashLibrary, "_fxSplashInit@24");
+      GrSplashPlugProc fxSplashPlug = (GrSplashPlugProc)GetProcAddress(splashLibrary, "_fxSplashPlug@16");
+      GrSplashShutdownProc fxSplashShutdown = (GrSplashShutdownProc)GetProcAddress(splashLibrary, "_fxSplashShutdown@0");
+
+      glide2x::GrState glideState;
+      GetState(&glideState);
+      m_ignoreGetSetState = FXTRUE;
+      FxBool success = ((fxSplash != NULL) && (fxSplashInit != NULL) && (fxSplashPlug != NULL) && (fxSplashShutdown != NULL));
+      if (success) {
+        success = fxSplashInit(reinterpret_cast<FxU32>(m_window), width, height, m_colorBuffers, m_auxBuffers, m_state.colorFormat);
+        if (success) {
+          if (m_api == GLIDEAPI::API_GLIDE_3X)
+            SetOriginLocation(GR_ORIGIN_LOWER_LEFT);
+
+          fxSplash(x, y, width, height, frame);
+          fxSplashShutdown();
+        }
+      } else {
+        doSplash(this, x, y, width, height, frame);
+      }
+
+      FreeLibrary(splashLibrary);
+      m_ignoreGetSetState = FXFALSE;
+      SetState(&glideState);
+    } else {
+      doSplash(this, x, y, width, height, frame);
+    }
+  }
+
   void GlideDevice::SetCoordinateSpace(glide3x::GrCoordinateSpaceMode_t mode) {
     if (m_state.coordinateSpace != mode) {
       m_state.coordinateSpace = mode;
@@ -2108,35 +2178,35 @@ namespace dxvk {
     return m_state.vertexLayout.GetLayoutSize();
   }
 
-  void GlideDevice::LoadVertexLayout(void *layout) {
+  void GlideDevice::GetVertexLayoutState(void *layout) {
     GlideDeviceLock lock = LockDevice();
 
-    if (layout == nullptr)
+    if (layout == nullptr || m_ignoreGetSetState)
       return;
 
     uint32_t id = ++m_vertexLayoutLastID;
     *static_cast<uint32_t*>(layout) = id;
     m_state.vertexLayout.GetLayout(&m_vertexLayouts[id]);
-    m_dirty.set(GlideDeviceDirtyFlag::VertexLayout, GlideDeviceDirtyFlag::PushDataShared);
   }
 
-  void GlideDevice::SaveVertexLayout(const void *layout) {
+  void GlideDevice::SetVertexLayoutState(const void *layout) {
     GlideDeviceLock lock = LockDevice();
 
-    if (layout == nullptr)
+    if (layout == nullptr || m_ignoreGetSetState)
       return;
 
     uint32_t id = (static_cast<const uint32_t *>(layout))[0];
     auto it = m_vertexLayouts.find(id);
     if (it != m_vertexLayouts.end()) {
-      m_state.vertexLayout.GetLayout(&it->second);
+      m_state.vertexLayout.SetLayout(&it->second);
+      m_dirty.set(GlideDeviceDirtyFlag::VertexLayout, GlideDeviceDirtyFlag::PushDataShared);
     }
   }
 
   void GlideDevice::GetState(void *state) {
     GlideDeviceLock lock = LockDevice();
 
-    if (state == nullptr)
+    if (state == nullptr || m_ignoreGetSetState)
       return;
 
     uint32_t id = ++m_stateLastID;
@@ -2147,7 +2217,7 @@ namespace dxvk {
   void GlideDevice::SetState(const void *state) {
     GlideDeviceLock lock = LockDevice();
 
-    if (state == nullptr)
+    if (state == nullptr || m_ignoreGetSetState)
       return;
 
     uint32_t id = (static_cast<const uint32_t *>(state))[0];

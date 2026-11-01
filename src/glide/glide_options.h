@@ -34,10 +34,11 @@ namespace dxvk {
     bool      hackNoDepth;
     bool      hackNoLFB;
     bool      hackNoMipMaps;
-    bool      perTMUTables;
-    int32_t   presentInterval;
     int32_t   maxFrameRate;
     bool      multithread;
+    bool      noSplash;
+    bool      perTMUTables;
+    int32_t   presentInterval;
     int32_t   useDepthFormat;
     bool      useMonitorResolution;
   };

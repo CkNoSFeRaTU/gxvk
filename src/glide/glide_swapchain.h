@@ -29,7 +29,6 @@ namespace dxvk {
     FxU32 BufferCount;
     FxU32 AuxBufferCount;
     FxU32 SpecialCount;
-    GrColorFormat_t ColorFormat;
   };
 
   static constexpr uint32_t NumControlPoints = 256;

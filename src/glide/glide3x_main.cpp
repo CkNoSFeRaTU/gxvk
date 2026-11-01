@@ -46,7 +46,12 @@ extern "C" {
 
   // API
   DLLEXPORT void __stdcall grAADrawTriangle(const void *a, const void *b, const void *c, FxBool ab_antialias, FxBool bc_antialias, FxBool ca_antialias) {
-    DEBUGLOG("stub: grAADrawTriangle");
+    DEBUGLOG(">>> grAADrawTriangle");
+
+    if (unlikely(glideDevice == nullptr))
+      return;
+
+    return glideDevice->DrawTriangle(a, b, c, ab_antialias, bc_antialias, ca_antialias);
   }
 
   DLLEXPORT void __stdcall grAlphaBlendFunction(GrAlphaBlendFnc_t rgb_sf, GrAlphaBlendFnc_t rgb_df, GrAlphaBlendFnc_t alpha_sf, GrAlphaBlendFnc_t alpha_df) {
@@ -603,7 +608,7 @@ extern "C" {
     if (unlikely(glideDevice == nullptr))
       return;
 
-    glideDevice->LoadVertexLayout(layout);
+    glideDevice->GetVertexLayoutState(layout);
   }
 
   DLLEXPORT void __stdcall grGlideInit() {
@@ -627,7 +632,7 @@ extern "C" {
     if (unlikely(glideDevice == nullptr))
       return;
 
-    glideDevice->SaveVertexLayout(layout);
+    glideDevice->SetVertexLayoutState(layout);
   }
 
   DLLEXPORT void __stdcall grGlideShutdown() {
@@ -783,8 +788,13 @@ extern "C" {
     DEBUGLOG("stub: grSetNumPendingBuffers");
   }
 
-  DLLEXPORT void __stdcall grSplash(float x, float y, float width, float height, FxU32 frame) {
-    DEBUGLOG("stub: grSplash");
+  DLLEXPORT void __stdcall grSplash(FxFloat x, FxFloat y, FxFloat width, FxFloat height, FxU32 frame) {
+    DEBUGLOG(">>> grSplash");
+
+    if (unlikely(glideDevice == nullptr))
+      return;
+
+    glideDevice->ShowSplash(x, y, width, height, frame);
   }
 
   DLLEXPORT void __stdcall grSstConfigPipeline(GrChipID_t chip, GrSstRegister reg, FxU32 value) {
@@ -832,10 +842,6 @@ extern "C" {
       return 0;
 
     HWND m_hWnd = reinterpret_cast<HWND>(hWnd);
-    if (m_hWnd == nullptr)
-      m_hWnd = GetActiveWindow();
-    SetFocus(m_hWnd);
-
     return glideDevice->WindowOpen(m_hWnd, resolution, refreshRate, colorFormat, originLocation, nColBuffers, nAuxBuffers);
   }
 
@@ -962,15 +968,15 @@ extern "C" {
 
     Rc<GlideTMU> TMU = glideDevice->GetTMU(GR_TMU0);
     if (unlikely(TMU != nullptr))
-      TMU->SetTable(type, data, 0, 0);
+      TMU->SetTable(type, data);
 
     TMU = glideDevice->GetTMU(GR_TMU1);
     if (unlikely(TMU != nullptr))
-      TMU->SetTable(type, data, 0, 0);
+      TMU->SetTable(type, data);
 
     TMU = glideDevice->GetTMU(GR_TMU2);
     if (unlikely(TMU != nullptr))
-      TMU->SetTable(type, data, 0, 0);
+      TMU->SetTable(type, data);
   }
 
   DLLEXPORT void __stdcall grTexDownloadTablePartial(GrTexTable_t type, void * data, FxI32 start, FxI32 end) {

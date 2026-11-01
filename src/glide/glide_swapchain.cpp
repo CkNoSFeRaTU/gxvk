@@ -167,11 +167,8 @@ namespace dxvk {
   VkSurfaceFormatKHR GlideSwapChain::GetBufferFormat(GrBuffer_t buffer) {
     switch (buffer) {
       default:
-        Logger::warn(str::format("GlideSwapChain: Unexpected format: ", m_desc.ColorFormat));
+        Logger::warn(str::format("GlideSwapChain: Unexpected buffer type: ", buffer));
         [[fallthrough]];
-
-      case GR_BUFFER_ALPHABUFFER:
-        return { VK_FORMAT_R16_UINT, m_colorSpace };
       case GR_BUFFER_BACKBUFFER:
       case GR_BUFFER_FRONTBUFFER:
       case GR_BUFFER_AUXBUFFER:
@@ -185,6 +182,8 @@ namespace dxvk {
         else
           return { VK_FORMAT_D16_UNORM, m_colorSpace };
       }
+      case GR_BUFFER_ALPHABUFFER:
+        return { VK_FORMAT_R16_UINT, m_colorSpace };
     }
   }
 
@@ -518,27 +517,20 @@ namespace dxvk {
           return;
     }
 
-#if FULL_RESET
     m_presenter->invalidateSurface();
     m_presenter->destroyResources();
 
     DestroyFrameLatencyEvent();
     DestroyLatencyTracker();
     DestroyBackBuffers();
-#endif
 
     UpdateRects(desc);
 
-#if FULL_RESET
     CreateFrameLatencyEvent();
     CreatePresenter();
-#endif
-
     CreateBackBuffers();
 
-#if FULL_RESET
     CreateBlitter();
-#endif
 
     ChangeDisplayMode();
   }

@@ -580,7 +580,12 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grSplash() {
-    DEBUGLOG("stub: grSplash");
+    DEBUGLOG(">>> grSplash");
+
+    if (unlikely(glideDevice == nullptr))
+      return;
+
+    glideDevice->ShowSplash(0, 0, 0, 0, 0);
   }
 
   DLLEXPORT void __stdcall grSstConfigPipeline(GrChipID_t chip, GrSstRegister reg, FxU32 value) {
@@ -601,15 +606,13 @@ extern "C" {
   }
 
   DLLEXPORT FxBool __stdcall grSstOpen(GrScreenResolution_t resolution, GrScreenRefresh_t refreshRate, GrColorFormat_t colorFormat, GrOriginLocation_t originLocation, GrSmoothingMode_t smoothingFilter, FxI32 nColBuffers) {
-    DEBUGLOG(">>> grSstWinOpen");
+    DEBUGLOG(">>> grSstOpen");
 
     if (unlikely(glideDevice == nullptr))
       return FXFALSE;
 
-    HWND m_hWnd = GetActiveWindow();
-
     // TODO: smoothingFilter
-    return glideDevice->WindowOpen(m_hWnd, resolution, refreshRate, colorFormat, originLocation, nColBuffers, 0);
+    return glideDevice->WindowOpen(nullptr, resolution, refreshRate, colorFormat, originLocation, nColBuffers, 0);
   }
 
   DLLEXPORT void __stdcall grSstOrigin(GrOriginLocation_t origin) {
@@ -670,7 +673,9 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grSstResetPerfStats(void) {
-    DEBUGLOG("stub: grSstResetPerfStats");
+    DEBUGLOG(">>> grSstResetPerfStats");
+
+    // TODO: support stats?
   }
 
   DLLEXPORT FxI32 __stdcall grSstScreenHeight(void) {
@@ -714,16 +719,22 @@ extern "C" {
   }
 
   DLLEXPORT FxBool __stdcall grSstVRetraceOn(void) {
-    DEBUGLOG("stub: grSstVRetraceOn");
+    DEBUGLOG(">>> grSstVRetraceOn");
+
+    // we are not in CRT days, no retrace
+
     return FXFALSE;
   }
 
   DLLEXPORT void __stdcall grSstVidMode(FxU32 whichSst, FxVideoTimingInfo *vidTimings) {
-    DEBUGLOG("stub: grSstVidMode");
+    DEBUGLOG(">>> grSstVidMode");
   }
 
   DLLEXPORT FxU32 __stdcall grSstVideoLine(void) {
-    DEBUGLOG("stub: grSstVideoLine");
+    DEBUGLOG(">>> grSstVideoLine");
+
+    // we are not in CRT days, beam is always 0,0
+
     return 0;
   }
 
@@ -846,19 +857,19 @@ extern "C" {
       if (unlikely(TMU == nullptr))
         return;
 
-      TMU->SetTable(type, data, 0, 0);
+      TMU->SetTable(type, data);
     } else {
       Rc<GlideTMU> TMU = glideDevice->GetTMU(GR_TMU0);
       if (unlikely(TMU != nullptr))
-        TMU->SetTable(type, data, 0, 0);
+        TMU->SetTable(type, data);
 
       TMU = glideDevice->GetTMU(GR_TMU1);
       if (unlikely(TMU != nullptr))
-        TMU->SetTable(type, data, 0, 0);
+        TMU->SetTable(type, data);
 
       TMU = glideDevice->GetTMU(GR_TMU2);
       if (unlikely(TMU != nullptr))
-        TMU->SetTable(type, data, 0, 0);
+        TMU->SetTable(type, data);
     }
   }
 
