@@ -1170,10 +1170,10 @@ extern "C" {
       case DLL_THREAD_DETACH:
         break;
       case DLL_PROCESS_ATTACH:
-        Logger::info(">>>>>>> LOADING GXVK >>>>>>>");
+        Logger::info(">>>>>>> LOADING GXVK GLIDE 3X >>>>>>>");
         break;
       case DLL_PROCESS_DETACH: {
-        Logger::info("<<<<<<< UNLOADING GXVK <<<<<<<");
+        Logger::info("<<<<<<< UNLOADING GXVK GLIDE 3X <<<<<<<");
         break;
       }
       default:
