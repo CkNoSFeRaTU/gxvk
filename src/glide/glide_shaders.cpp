@@ -32,7 +32,7 @@ namespace dxvk {
   }
 
   Rc<DxvkShader> GlideShaderModuleSet::buildFs(GlideDevice* pDevice) {
-    small_vector<DxvkBindingInfo, 2 + GLIDE_MAX_TEXTURESTAGES> bindings = {};
+    small_vector<DxvkBindingInfo, 2 + GLIDE_MAX_TEXTURESTAGES + 1> bindings = {};
 
     auto& sharedDataBinding = bindings.emplace_back();
     sharedDataBinding.set             = CbvSet;
@@ -50,9 +50,9 @@ namespace dxvk {
     textureBinding.resourceIndex   = textureBindingId;
     textureBinding.descriptorType  = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
     textureBinding.access          = VK_ACCESS_SHADER_READ_BIT;
-    textureBinding.descriptorCount = GLIDE_MAX_TEXTURESTAGES;
+    textureBinding.descriptorCount = GLIDE_MAX_TEXTURESTAGES + 1;
 
-    for (uint32_t i = 0; i < GLIDE_MAX_TEXTURESTAGES; i++) {
+    for (uint32_t i = 0; i < GLIDE_MAX_TEXTURESTAGES + 1; i++) {
       uint32_t samplerBindingId = computeTextureBinding(GlideShaderType::PixelShader, i);
 
       auto& samplerBinding = bindings.emplace_back();
@@ -62,12 +62,12 @@ namespace dxvk {
       samplerBinding.flags.set(DxvkDescriptorFlag::PushData);
     }
 
-    uint32_t samplerCount = GLIDE_MAX_TEXTURESTAGES;
+    uint32_t samplerCount = GLIDE_MAX_TEXTURESTAGES + 1;
     uint32_t samplerDwordCount = (samplerCount + 1u) / 2u;
 
     uint32_t pushDataSamplerOffset = GetPushSamplerOffset(0u) - MaxSharedPushDataSize;
     uint32_t pushDataSamplerShift = pushDataSamplerOffset / 4u;
-    uint32_t pushDataSize = GetPushSamplerOffset(GLIDE_MAX_TEXTURESTAGES) - MaxSharedPushDataSize;
+    uint32_t pushDataSize = GetPushSamplerOffset(GLIDE_MAX_TEXTURESTAGES + 1) - MaxSharedPushDataSize;
 
     DxvkSpirvShaderCreateInfo info;
     info.bindingCount = bindings.size();

@@ -28,11 +28,22 @@ namespace dxvk {
 
     this->deviceLocalConstantBuffers = config.getOption<Tristate>("glide.deviceLocalConstantBuffers", Tristate::Auto);
     this->deviceReset = config.getOption<bool>("glide.deviceReset", true);
+    this->doubleSizedTMU = config.getOption<bool>("glide.doubleSizedTMU", false);
     this->hackNoBlend = config.getOption<bool>("glide.hackNoBlend", false);
     this->hackNoClears = config.getOption<bool>("glide.hackNoClears", false);
     this->hackNoDepth = config.getOption<bool>("glide.hackNoDepth", false);
     this->hackNoLFB = config.getOption<bool>("glide.hackNoLFB", false);
     this->hackNoMipMaps = config.getOption<bool>("glide.hackNoMipMaps", false);
+
+    std::string lfbMode = Config::toLower(config.getOption<std::string>("glide.lfbMode", "auto"));
+    if (lfbMode == "legacy") {
+      this->lfbMode = GlideLFBMode::LFB_LEGACY;
+    } else if (lfbMode == "uma") {
+      this->lfbMode = GlideLFBMode::LFB_UMA;
+    } else {
+      this->lfbMode = GlideLFBMode::LFB_AUTO;
+    }
+
     this->maxFrameRate = config.getOption<int32_t>("dxvk.maxFrameRate",
                          config.getOption<int32_t>("glide.maxFrameRate", 0));
     this->multithread = config.getOption<bool>("glide.multithread", false);

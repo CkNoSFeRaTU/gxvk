@@ -32,6 +32,8 @@ namespace dxvk {
 #define DEBUGLOG(msg) {}
 #endif
 
+static constexpr uint32_t DepthIdx = 3u;
+
 struct GlideBoardConfiguration {
   std::string name;
   GrSstType type;

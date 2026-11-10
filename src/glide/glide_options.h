@@ -21,26 +21,34 @@ namespace dxvk {
     DEPTH_D32 = 2,
   };
 
+  enum class GlideLFBMode : uint8_t {
+    LFB_AUTO = 0,
+    LFB_LEGACY = 1,
+    LFB_UMA = 2,
+  };
+
   struct GlideOptions {
     GlideOptions(const Config& config);
 
-    bool      autoGenMipMaps;
-    GlideCard card;
+    bool              autoGenMipMaps;
+    GlideCard         card;
     /// Use device local memory for constant buffers.
-    Tristate  deviceLocalConstantBuffers;
-    bool      deviceReset;
-    bool      hackNoBlend;
-    bool      hackNoClears;
-    bool      hackNoDepth;
-    bool      hackNoLFB;
-    bool      hackNoMipMaps;
-    int32_t   maxFrameRate;
-    bool      multithread;
-    bool      noSplash;
-    bool      perTMUTables;
-    int32_t   presentInterval;
-    int32_t   useDepthFormat;
-    bool      useMonitorResolution;
+    Tristate          deviceLocalConstantBuffers;
+    bool              deviceReset;
+    bool              doubleSizedTMU;
+    bool              hackNoBlend;
+    bool              hackNoClears;
+    bool              hackNoDepth;
+    bool              hackNoLFB;
+    bool              hackNoMipMaps;
+    GlideLFBMode      lfbMode;
+    int32_t           maxFrameRate;
+    bool              multithread;
+    bool              noSplash;
+    bool              perTMUTables;
+    int32_t           presentInterval;
+    int32_t           useDepthFormat;
+    bool              useMonitorResolution;
   };
 
 }

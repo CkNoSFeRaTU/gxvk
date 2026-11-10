@@ -42,10 +42,10 @@ uniform RenderStates {
     layout(offset = MaxSharedPushDataSize)
     GlideFfpsPushData ffps;
 
-    uint packedSamplerIndices[TextureStageCount / 2u];
+    uint packedSamplerIndices[(TextureStageCount + 1) / 2u];
 };
 
-layout(set = SRV_SET, binding = SRV_PS_BASE) uniform texture2D t2d[TextureStageCount];
+layout(set = SRV_SET, binding = SRV_PS_BASE) uniform texture2D t2d[TextureStageCount + 1];
 layout(set = SAMPLER_SET, binding = 0) uniform sampler sampler_heap[];
 
 #define GR_DEPTHBUFFER_DISABLE 0x00
@@ -129,6 +129,14 @@ bool getDelta0Mode() {
   return bitfieldExtract(ffps.flags, 3, 1) != 0;
 }
 
+bool getDepthMask() {
+  return bitfieldExtract(ffps.flags, 4, 1) != 0;
+}
+
+uint getDepthFunction() {
+  return bitfieldExtract(ffps.flags, 5, 3);
+}
+
 uint getAlphaFunctionTMU(uint combinerTMU) {
   return bitfieldExtract(combinerTMU, 0, 4);
 }
@@ -210,6 +218,10 @@ float getAlphaTestReference() {
 }
 
 vec2 transformTexCoord(vec3 stq, float a) {
+  if (global.coordinateSpace == GR_CLIP_COORDS) {
+    return stq.xy;
+  }
+
   float aspect = exp2(a);
 
   vec2 extent = GLIDE_TEXCOORD * vec2(
@@ -252,7 +264,7 @@ float opAlphaFactor(uint operation, float localAlpha, float otherAlpha, vec4 tex
 }
 
 float opAlphaFunction(uint operation, float factorAlpha, float localAlpha, float otherAlpha) {
-  if (operation == GR_COMBINE_FUNCTION_LOCAL)
+  if (operation == GR_COMBINE_FUNCTION_LOCAL || operation == GR_COMBINE_FUNCTION_LOCAL_ALPHA)
     return localAlpha;
   else if (operation == GR_COMBINE_FUNCTION_SCALE_OTHER)
     return factorAlpha * otherAlpha;
@@ -329,13 +341,13 @@ vec4 combinerTMU(uint stage, vec4 localInput, vec4 otherInput) {
   vec4 result = vec4(0.0);
 
   const float factorA = opAlphaFactor(factorAlpha, localInput.a, otherInput.a, localInput);
-  result.a = opAlphaFunction(functionAlpha, factorA, localInput.a, otherInput.a);
+  result.a = clamp(opAlphaFunction(functionAlpha, factorA, localInput.a, otherInput.a), 0.0, 1.0);
 
   if (invertAlpha)
     result.a = 1.0 - result.a;
 
   const vec3 factorC = opColorFactor(factorColor, localInput.rgb, localInput.a, otherInput.a, localInput);
-  result.rgb = opColorFunction(functionColor, factorC, localInput.rgb, otherInput.rgb, localInput.a);
+  result.rgb = clamp(opColorFunction(functionColor, factorC, localInput.rgb, otherInput.rgb, localInput.a), 0.0, 1.0);
 
   if (invertColor)
     result.rgb = 1.0 - result.rgb;
@@ -371,6 +383,8 @@ vec4 combinerPixelFx(uint colorFormat, vec4 vertColor, vec4 texColor) {
     localAlpha = vertColor.a;
   else if (curAlphaLocal == GR_COMBINE_LOCAL_CONSTANT)
     localAlpha = constantColor.a;
+  else if (curAlphaLocal == GR_COMBINE_LOCAL_DEPTH)
+    localAlpha = clamp(floor(in_Z / 256.0) / 255.0, 0.0, 1.0);
 
   float otherAlpha = 0.0;
   const uint curAlphaOther = getAlphaOther();
@@ -384,7 +398,7 @@ vec4 combinerPixelFx(uint colorFormat, vec4 vertColor, vec4 texColor) {
   chromaTestAlpha(colorFormat, otherAlpha);
 
   float factorAlpha = opAlphaFactor(getAlphaFactor(), localAlpha, otherAlpha, texColor);
-  result.a = opAlphaFunction(getAlphaFunction(), factorAlpha, localAlpha, otherAlpha);
+  result.a = clamp(opAlphaFunction(getAlphaFunction(), factorAlpha, localAlpha, otherAlpha), 0.0, 1.0);
   if (getAlphaInvert())
     result.a = 1.0 - result.a;
 
@@ -401,9 +415,8 @@ vec4 combinerPixelFx(uint colorFormat, vec4 vertColor, vec4 texColor) {
       localColor = vertColor.rgb;
     else if (curColorLocal == GR_COMBINE_LOCAL_CONSTANT)
       localColor = constantColor.rgb;
-    else if (curColorLocal == GR_COMBINE_LOCAL_DEPTH) {
+    else if (curColorLocal == GR_COMBINE_LOCAL_DEPTH)
       localColor = vec3(clamp(floor(in_Z / 256.0) / 255.0, 0.0, 1.0));
-    }
   }
 
   vec3 otherColor = vec3(0.0);
@@ -418,7 +431,7 @@ vec4 combinerPixelFx(uint colorFormat, vec4 vertColor, vec4 texColor) {
   chromaTestColor(colorFormat, otherColor);
 
   vec3 factorColor = opColorFactor(getColorFactor(), localColor, localAlpha, otherAlpha, texColor);
-  result.rgb = opColorFunction(getColorFunction(), factorColor, localColor, otherColor, localAlpha);
+  result.rgb = clamp(opColorFunction(getColorFunction(), factorColor, localColor, otherColor, localAlpha), 0.0, 1.0);
   if (getColorInvert())
     result.rgb = vec3(1.0) - result.rgb;
 
@@ -447,7 +460,7 @@ void alphaTest(float alpha) {
     passed = alpha >= alphaReference;
 
   if (!passed)
-    discard;
+    demote;
 }
 
 vec4 applyFog(uint colorFormat, vec4 vertColor, vec4 localColor) {
@@ -461,10 +474,10 @@ vec4 applyFog(uint colorFormat, vec4 vertColor, vec4 localColor) {
   if ((!glide3x() && mode == GR_FOG_WITH_ITERATED_ALPHA) || (glide3x() && fogMode == GR_FOG_WITH_ITERATED_ALPHA_EXT)) {
     factorFog = vertColor.a;
   } else if (mode == GR_FOG_WITH_ITERATED_Z) {
-    factorFog = clamp(in_Z / (ffps.depth.x - ffps.depth.y), 0.0, 1.0);
+    factorFog = clamp(in_Z / 65535.0, 0.0, 1.0);
   } else {
+    float W = global.coordinateSpace == GR_CLIP_COORDS ? in_W : 1.0 / in_W;
     uint idx = 0;
-    float W = 1.0 / in_W;
     if (glide3x() && mode == GR_FOG_WITH_TABLE_ON_FOGCOORD_EXT) {
       idx = uint(in_FOGEXT);
     } else {
@@ -500,6 +513,28 @@ vec4 applyFog(uint colorFormat, vec4 vertColor, vec4 localColor) {
   return vec4(clamp(factorFog * fogColor.rgb + (1 - factorFog) * localColor.rgb, 0.0, 1.0), localColor.a);
 }
 
+float depthFP(uint depthMode, float oow, float ooz) {
+  float depth = 0.0;
+  if (depthMode == GR_DEPTHBUFFER_WBUFFER || depthMode == GR_DEPTHBUFFER_WBUFFER_COMPARE_TO_BIAS) {
+    float W = global.coordinateSpace == GR_CLIP_COORDS ? in_W : 1.0 / in_W;
+    W = clamp(W, 1.0, 65528.0);
+    float exponent = trunc(log2(W));
+
+    float base = exp2(exponent);
+    float mantissa = (W / base) * 4096.0 - 4096.0;
+
+    depth = clamp((uint(exponent) << 12) | uint(mantissa), 0, 65535);
+  } else if (depthMode == GR_DEPTHBUFFER_ZBUFFER || depthMode == GR_DEPTHBUFFER_ZBUFFER_COMPARE_TO_BIAS) {
+    depth = clamp(ooz, 0.0, 65535.0);
+  }
+
+  if (depthMode == GR_DEPTHBUFFER_WBUFFER || depthMode == GR_DEPTHBUFFER_ZBUFFER) {
+    depth = clamp(depth + ffps.depthBias, 0.0, 65535.0);
+  }
+
+  return depth;
+}
+
 void main() {
   vec4 vertexColor = in_Color;
   const uint colorFormat = getColorFormat(global.flags);
@@ -519,11 +554,38 @@ void main() {
   resultColor = applyFog(colorFormat, vertexColor, resultColor);
 
   const uint depthMode = getDepthMode();
-  if (depthMode == GR_DEPTHBUFFER_WBUFFER || depthMode == GR_DEPTHBUFFER_WBUFFER_COMPARE_TO_BIAS) {
-    gl_FragDepth = clamp(((1.0 / in_W) - 1.0) / 65527.0, 0.0, 1.0);
-  } else if (depthMode == GR_DEPTHBUFFER_ZBUFFER || depthMode == GR_DEPTHBUFFER_ZBUFFER_COMPARE_TO_BIAS) {
-    gl_FragDepth = clamp(in_Z / (ffps.depth.x - ffps.depth.y), 0.0, 1.0);
+  float depth = 0.0;
+  if (depthMode == GR_DEPTHBUFFER_WBUFFER_COMPARE_TO_BIAS || depthMode == GR_DEPTHBUFFER_ZBUFFER_COMPARE_TO_BIAS) {
+    ivec2 pixelCoord = ivec2(gl_FragCoord.xy);
+    float depthCurrent = texelFetch(sampler2D(t2d[DEPTH_IDX], sampler_heap[loadSamplerHeapIndex(DEPTH_IDX)]), pixelCoord, 0).r * 65535.0;
+    float depthReference = clamp(ffps.depthBias, 0.0, 65535.0);
+    uint depthTestFunction = getDepthFunction();
+
+    bool passed = true; // GR_CMP_ALWAYS
+    if (depthTestFunction == GR_CMP_NEVER)
+      passed = false;
+    else if (depthTestFunction == GR_CMP_LESS)
+      passed = depthCurrent < depthReference;
+    else if (depthTestFunction == GR_CMP_EQUAL)
+      passed = depthCurrent == depthReference;
+    else if (depthTestFunction == GR_CMP_LEQUAL)
+      passed = depthCurrent <= depthReference;
+    else if (depthTestFunction == GR_CMP_GREATER)
+      passed = depthCurrent > depthReference;
+    else if (depthTestFunction == GR_CMP_NOTEQUAL)
+      passed = depthCurrent != depthReference;
+    else if (depthTestFunction == GR_CMP_GEQUAL)
+      passed = depthCurrent >= depthReference;
+
+    if (!passed) {
+      demote;
+    } else {
+      depth = in_W;
+    }
+  } else {
+    depth = depthFP(depthMode, in_W, in_Z);
   }
 
+  gl_FragDepth = clamp(depth / 65535.0, 0.0, 1.0);
   out_Color = resultColor;
 }

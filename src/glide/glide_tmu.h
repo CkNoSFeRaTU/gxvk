@@ -40,7 +40,7 @@ namespace dxvk {
       uint8_t *data = nullptr;
     };
 
-    GlideTMU(GlideDevice* pDevice, GrChipID_t id);
+    GlideTMU(GlideDevice* pDevice, GrChipID_t id, FxU32 size);
     ~GlideTMU();
 
     FxU32 GetMinimumAddress() {

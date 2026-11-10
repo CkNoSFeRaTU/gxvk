@@ -40,7 +40,10 @@ namespace dxvk {
 
       m_totalSize = m_desc.Width * m_desc.Height * 4;
     } else if (m_desc.Type == GR_BUFFER_DEPTHBUFFER) {
-      imageInfo.usage  |= VK_IMAGE_ASPECT_STENCIL_BIT;
+      imageInfo.usage  |= VK_IMAGE_ASPECT_DEPTH_BIT
+                       |  VK_IMAGE_ASPECT_STENCIL_BIT
+                       |  VK_IMAGE_USAGE_SAMPLED_BIT
+                       |  VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT;
       if (unlikely(m_device->GetDXVKDevice()->debugFlags().test(DxvkDebugFlag::Markers)))
         imageInfo.debugName = m_desc.Id.c_str();
 
@@ -189,7 +192,8 @@ namespace dxvk {
     if (ptr != nullptr) {
       UtilConvertRGBAToImage(UtilLFBWriteModeToIFormat(m_lockmode), ptr, m_convertBuffer.data(), m_desc.Width, m_desc.Height);
 
-      if (unlikely(m_device->GetAPI() == GLIDEAPI::API_GLIDE_1X)) {
+      if (unlikely((m_device->GetOptions()->lfbMode == GlideLFBMode::LFB_AUTO && m_device->GetAPI() == GLIDEAPI::API_GLIDE_1X)
+                || m_device->GetOptions()->lfbMode == GlideLFBMode::LFB_LEGACY)) {
         std::vector<uint8_t> tempBuffer;
         constexpr FxU32 legacyWidth = 1024u;
         constexpr FxU32 legacyHeight = 1024u;
@@ -230,7 +234,8 @@ namespace dxvk {
     VkExtent3D levelExtent = m_image->mipLevelExtent(subresources.baseMipLevel);
     DxvkBufferSlice slice = DxvkBufferSlice(m_buffer, 0, size);
 
-    if (unlikely(m_device->GetAPI() == GLIDEAPI::API_GLIDE_1X)) {
+    if (unlikely((m_device->GetOptions()->lfbMode == GlideLFBMode::LFB_AUTO && m_device->GetAPI() == GLIDEAPI::API_GLIDE_1X)
+              || m_device->GetOptions()->lfbMode == GlideLFBMode::LFB_LEGACY)) {
       std::vector<uint8_t> tempBuffer;
       constexpr FxU32 legacyWidth = 1024u;
       constexpr FxU32 legacyHeight = 1024u;

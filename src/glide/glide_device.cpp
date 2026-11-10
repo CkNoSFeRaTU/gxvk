@@ -36,49 +36,12 @@ namespace dxvk {
 
     Logger::info(str::format("Board: ", m_boardConfiguration.name));
     for (int idx = 0; idx < m_boardConfiguration.tmuCount; idx++) {
-      m_tmu[idx] = new GlideTMU(this, static_cast<GrChipID_t>(idx));
-      Logger::info(str::format("TMU ", idx, " started with ", m_boardConfiguration.tmuRam, "MB of RAM"));
+      const FxU32 size = m_boardConfiguration.tmuRam * (m_glideOptions.doubleSizedTMU ? 2 : 1);
+      m_tmu[idx] = new GlideTMU(this, static_cast<GrChipID_t>(idx), size * 1024 * 1024);
+      Logger::info(str::format("TMU ", idx, " started with ", size, "MB of RAM"));
     }
 
     Reset();
-
-    EmitCs([
-      cDevice = m_device
-    ] (DxvkContext *ctx) {
-      ctx->beginRecording(cDevice->createCommandList());
-
-      // Disable logic op once and for all.
-      DxvkLogicOpState loState = { };
-      ctx->setLogicOpState(loState);
-    });
-
-    SynchronizeCsThread(DxvkCsThread::SynchronizeAll);
-
-    // Check for VK_EXT_depth_bias_control and set up initial state
-    m_depthBiasRepresentation = { VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORMAT_EXT, false };
-    if (m_device->features().extDepthBiasControl.depthBiasControl) {
-      if (m_device->features().extDepthBiasControl.depthBiasExact)
-        m_depthBiasRepresentation.depthBiasExact = true;
-
-      if (m_device->features().extDepthBiasControl.floatRepresentation) {
-        m_depthBiasRepresentation.depthBiasRepresentation = VK_DEPTH_BIAS_REPRESENTATION_FLOAT_EXT;
-        m_depthBiasScale = 0.0f;
-      }
-      else if (m_device->features().extDepthBiasControl.leastRepresentableValueForceUnormRepresentation)
-        m_depthBiasRepresentation.depthBiasRepresentation = VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORCE_UNORM_EXT;
-    }
-
-    EmitCs([
-      cFS             = m_shaders.GetShader<GlideShaderType::PixelShader>(),
-      cVS             = m_shaders.GetShader<GlideShaderType::VertexShader>(),
-      cRepresentation = m_depthBiasRepresentation
-    ] (DxvkContext* ctx) mutable {
-      ctx->bindShader<VK_SHADER_STAGE_FRAGMENT_BIT>(std::move(cFS));
-      ctx->bindShader<VK_SHADER_STAGE_VERTEX_BIT>(std::move(cVS));
-      ctx->setDepthBiasRepresentation(cRepresentation);
-    });
-
-    CreateConstantBuffers();
 
     for (int idx = 0; idx < FOG_TABLE_ENTRIES_COUNT; idx++) {
       glideFogIndexToW[idx] = std::powf(2.0f, 3.0f + static_cast<float>(idx >> 2)) / (8.0f - static_cast<float>(idx & 3));
@@ -156,6 +119,23 @@ namespace dxvk {
       }
     }
 
+    if (m_api != GLIDEAPI::API_GLIDE_3X) {
+      SetCoordinateSpace(glide3x::GR_WINDOW_COORDS);
+      SetVertexLayout(glide3x::GR_PARAM_XY, glide3x::GR_PARAM_ENABLE, 0);
+      // 3Dfx headers says that Z is ignored, so not likely to be populated by games
+      // glideDevice->SetVertexLayout(glide3x::GR_PARAM_Z, glide3x::GR_PARAM_ENABLE, 8);
+      SetVertexLayout(glide3x::GR_PARAM_RGB, glide3x::GR_PARAM_ENABLE, 12);
+      // ooz
+      SetVertexLayout(glide3x::GR_PARAM_Z, glide3x::GR_PARAM_ENABLE, 24);
+      SetVertexLayout(glide3x::GR_PARAM_A, glide3x::GR_PARAM_ENABLE, 28);
+      // oow
+      SetVertexLayout(glide3x::GR_PARAM_W, glide3x::GR_PARAM_ENABLE, 32);
+      SetVertexLayout(glide3x::GR_PARAM_ST0, glide3x::GR_PARAM_ENABLE, 36);
+      SetVertexLayout(glide3x::GR_PARAM_Q0, glide3x::GR_PARAM_ENABLE, 44);
+      SetVertexLayout(glide3x::GR_PARAM_ST1, glide3x::GR_PARAM_ENABLE, 48);
+      SetVertexLayout(glide3x::GR_PARAM_Q1, glide3x::GR_PARAM_ENABLE, 56);
+    }
+
     SetColorFormat(colorFormat);
     SetOriginLocation(originLocation);
     SetViewport(0, 0, m_screen.width, m_screen.height);
@@ -186,6 +166,44 @@ namespace dxvk {
       desc.ScreenWidth = desc.BackBufferWidth;
       desc.ScreenHeight = desc.BackBufferHeight;
     }
+
+    EmitCs([
+      cDevice = m_device
+    ] (DxvkContext *ctx) {
+      ctx->beginRecording(cDevice->createCommandList());
+
+      // Disable logic op once and for all.
+      DxvkLogicOpState loState = { };
+      ctx->setLogicOpState(loState);
+    });
+
+    SynchronizeCsThread(DxvkCsThread::SynchronizeAll);
+
+    // Check for VK_EXT_depth_bias_control and set up initial state
+    m_depthBiasRepresentation = { VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORMAT_EXT, false };
+    if (m_device->features().extDepthBiasControl.depthBiasControl) {
+      if (m_device->features().extDepthBiasControl.depthBiasExact)
+        m_depthBiasRepresentation.depthBiasExact = true;
+
+      if (m_device->features().extDepthBiasControl.floatRepresentation) {
+        m_depthBiasRepresentation.depthBiasRepresentation = VK_DEPTH_BIAS_REPRESENTATION_FLOAT_EXT;
+        m_depthBiasScale = 0.0f;
+      }
+      else if (m_device->features().extDepthBiasControl.leastRepresentableValueForceUnormRepresentation)
+        m_depthBiasRepresentation.depthBiasRepresentation = VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORCE_UNORM_EXT;
+    }
+
+    EmitCs([
+      cFS             = m_shaders.GetShader<GlideShaderType::PixelShader>(),
+      cVS             = m_shaders.GetShader<GlideShaderType::VertexShader>(),
+      cRepresentation = m_depthBiasRepresentation
+    ] (DxvkContext* ctx) mutable {
+      ctx->bindShader<VK_SHADER_STAGE_FRAGMENT_BIT>(std::move(cFS));
+      ctx->bindShader<VK_SHADER_STAGE_VERTEX_BIT>(std::move(cVS));
+      //ctx->setDepthBiasRepresentation(cRepresentation);
+    });
+
+    CreateConstantBuffers();
 
     if (m_swapchain == nullptr)
       m_swapchain = new GlideSwapChain(hWnd, this, std::move(desc));
@@ -372,7 +390,7 @@ namespace dxvk {
         Rc<GlideCommonTexture> textureDepth = nullptr;
         if (likely(m_swapchain->GetBuffer(GR_BUFFER_DEPTHBUFFER, textureDepth))) {
           VkClearValue clearBlock = { };
-          clearBlock.depthStencil.depth = float(depth) / (m_state.depthRange.n - m_state.depthRange.f);
+          clearBlock.depthStencil.depth = float(depth) / 65535.0;
           clearBlock.depthStencil.stencil = 0;
 
           Rc<DxvkImage> image = textureDepth->GetImage();
@@ -526,9 +544,6 @@ namespace dxvk {
     rsState.setCullMode(UtilCullModeVKCullModeFlags(m_state.cullMode));
     rsState.setConservativeMode(VK_CONSERVATIVE_RASTERIZATION_MODE_DISABLED_EXT);
     rsState.setLineMode(VK_LINE_RASTERIZATION_MODE_DEFAULT_EXT);
-    const auto& features = m_device->features();
-    if (features.extLineRasterization.smoothLines)
-      rsState.setLineMode(VK_LINE_RASTERIZATION_MODE_RECTANGULAR_SMOOTH_EXT);
     rsState.setPolygonMode(VK_POLYGON_MODE_FILL);
     rsState.setFlatShading(false);
 
@@ -550,17 +565,27 @@ namespace dxvk {
     Rc<GlideCommonTexture> tex = texture->texture;
     Rc<DxvkImageView> imageView = tex->GetView(0);
     size_t mipmaps = imageView->imageSubresources().levelCount;
+    Rc<GlideCommonTexture> textureDepth = nullptr;
+    Rc<DxvkImageView> depthView = nullptr;
+
+    if (likely(m_swapchain->GetBuffer(GR_BUFFER_DEPTHBUFFER, textureDepth))) {
+      depthView = textureDepth->GetView(0);
+    }
 
     EmitCs([this,
       cTMUState   = m_state.tmu[tmu],
       cMipMaps    = mipmaps,
       cSlot       = tmu,
       cView       = std::move(imageView),
+      cDepthView  = std::move(depthView),
       cBindId     = m_samplerBindCount
-    ] (DxvkContext* ctx) {
+    ] (DxvkContext* ctx) mutable {
       DxvkSamplerKey key = { };
 
-      key.setLodRange(-32.0f, 31.0f, cTMUState.texLodBiasValue);
+      if (cTMUState.texMipMapMode.mode != GR_MIPMAP_DISABLE)
+        key.setLodRange(-8.0f, 7.75f, cTMUState.texLodBiasValue);
+      else
+        key.setLodRange(0.0f, 1.0f, 0.0f);
       key.setUsePixelCoordinates(false);
       key.setFilter(cTMUState.texFilterMode.min == GR_TEXTUREFILTER_POINT_SAMPLED ? VK_FILTER_NEAREST : VK_FILTER_LINEAR,
                     cTMUState.texFilterMode.mag == GR_TEXTUREFILTER_POINT_SAMPLED ? VK_FILTER_NEAREST : VK_FILTER_LINEAR,
@@ -576,6 +601,12 @@ namespace dxvk {
 
       auto [stage, slot] = getTextureSlotInfo(cSlot);
       ctx->bindResourceSampler(stage, slot, m_device->createSampler(key));
+
+      DxvkSamplerKey depthkey = { };
+      auto [dstage, dslot] = getTextureSlotInfo(DepthIdx);
+      depthkey.setViewProperties(cDepthView->info().unpackSwizzle(), cDepthView->info().format);
+      ctx->bindResourceImageView(dstage, dslot, std::move(cDepthView));
+      ctx->bindResourceSampler(dstage, dslot, m_device->createSampler(depthkey));
 
       // Let the main thread know about current sampler stats
       uint64_t liveCount = m_device->getSamplerStats().liveCount;
@@ -675,14 +706,14 @@ namespace dxvk {
       }
       if (cHazardState.DS != 0) {
         srcStages |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-        srcAccess |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        srcAccess |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT|VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
       }
 
       ctx->emitGraphicsBarrier(
         srcStages,
         srcAccess,
         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-        VK_ACCESS_SHADER_READ_BIT);
+        VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_SHADER_WRITE_BIT);
     });
   }
 
@@ -722,6 +753,9 @@ namespace dxvk {
 
       ConsiderFlush(GpuFlushType::ImplicitWeakHint);
     }
+
+    if (m_state.depthMode == GR_DEPTHBUFFER_WBUFFER_COMPARE_TO_BIAS || m_state.depthMode == GR_DEPTHBUFFER_ZBUFFER_COMPARE_TO_BIAS)
+      EmitFeedbackLoopBarriers(false, true);
 
     ApplyTopology(primitiveTopology);
 
@@ -778,6 +812,11 @@ namespace dxvk {
     UpdateFixedFunction();
   }
 
+  void GlideDevice::PostDraw(glide3x::GrDrawVertexArrayMode_t primitiveTopology) {
+    if (m_state.depthMode == GR_DEPTHBUFFER_WBUFFER_COMPARE_TO_BIAS || m_state.depthMode == GR_DEPTHBUFFER_ZBUFFER_COMPARE_TO_BIAS)
+      EmitFeedbackLoopBarriers(false, true);
+  }
+
   void GlideDevice::UpdateDepth() {
     m_dirty.clr(GlideDeviceDirtyFlag::Depth);
 
@@ -791,14 +830,15 @@ namespace dxvk {
     biases.depthBiasSlope    = 0.0f;
 
     DxvkDepthBounds bounds;
-    bounds.minDepthBounds = m_state.depthRange.f / static_cast<float>(SST1_ZDEPTHVALUE_NEAREST);
-    bounds.maxDepthBounds = m_state.depthRange.n / static_cast<float>(SST1_ZDEPTHVALUE_NEAREST);
+    bounds.minDepthBounds = 0.0;
+    bounds.maxDepthBounds = 1.0;
 
     DxvkDepthStencilState state = { };
     state.setDepthTest(m_state.depthMode != GR_DEPTHBUFFER_DISABLE);
     state.setDepthWrite(m_state.depthMode != GR_DEPTHBUFFER_DISABLE && m_state.depthMask);
     state.setStencilTest(false);
-    state.setDepthCompareOp(UtilCompareModeToVKCompareMode(m_state.depthFunction));
+    state.setDepthCompareOp(m_state.depthMode == GR_DEPTHBUFFER_WBUFFER_COMPARE_TO_BIAS || m_state.depthMode == GR_DEPTHBUFFER_ZBUFFER_COMPARE_TO_BIAS ? VK_COMPARE_OP_ALWAYS
+                            : UtilCompareModeToVKCompareMode(m_state.depthFunction));
     state.normalize();
 
     EmitCs([
@@ -926,6 +966,7 @@ namespace dxvk {
       m_pushData.ffps.depth[1] = m_state.depthRange.f;
       m_pushData.ffps.fogColor = m_state.fog.color;
       m_pushData.ffps.stipplePattern = m_state.stipplePattern;
+      m_pushData.ffps.depthBias = m_state.depthBiasLevel;
 
       m_pushData.ffps.flags = 0;
       if (m_state.alphaLighting)
@@ -936,6 +977,10 @@ namespace dxvk {
         m_pushData.ffps.flags |= FXBIT(2);
       if (m_state.delta0)
         m_pushData.ffps.flags |= FXBIT(3);
+      if (m_state.depthMask)
+        m_pushData.ffps.flags |= FXBIT(4);
+
+      m_pushData.ffps.flags |= (m_state.depthFunction & 0x07) << 5;
 
       UpdatePushDataBlock(m_pushData.ffps);
     }
@@ -1177,6 +1222,8 @@ namespace dxvk {
       ctx->draw(1u, &draw);
       ctx->bindVertexBuffer(0, DxvkBufferSlice(), 0);
     });
+
+    PostDraw(glide3x::GR_LINES);
   }
 
   void GlideDevice::DrawPoint(const void *pt) {
@@ -1210,6 +1257,8 @@ namespace dxvk {
       ctx->draw(1u, &draw);
       ctx->bindVertexBuffer(0, DxvkBufferSlice(), 0);
     });
+
+    PostDraw(glide3x::GR_POINTS);
   }
 
   void GlideDevice::DrawTriangle(const void *a, const void *b, const void *c, FxBool abAntialias, FxBool bcAntialias, FxBool caAntialias) {
@@ -1245,6 +1294,8 @@ namespace dxvk {
       ctx->draw(1u, &draw);
       ctx->bindVertexBuffer(0, DxvkBufferSlice(), 0);
     });
+
+    PostDraw(glide3x::GR_TRIANGLES);
   }
 
   void GlideDevice::DrawVertexArray(glide3x::GrDrawVertexArrayMode_t mode, FxU32 count, const void *pointers) {
@@ -1281,6 +1332,8 @@ namespace dxvk {
       ctx->draw(1u, &draw);
       ctx->bindVertexBuffer(0, DxvkBufferSlice(), 0);
     });
+
+    PostDraw(mode);
   }
 
   void GlideDevice::DrawVertexArrayContiguous(glide3x::GrDrawVertexArrayMode_t mode, FxU32 count, const void *pointers, FxU32 stride) {
@@ -1320,6 +1373,8 @@ namespace dxvk {
       ctx->draw(1u, &draw);
       ctx->bindVertexBuffer(0, DxvkBufferSlice(), 0);
     });
+
+    PostDraw(mode);
   }
 
   void GlideDevice::DrawVertexArrayIndexed(glide3x::GrDrawVertexArrayMode_t mode, FxU32 count, const void *pointers, const void *indices, FxU32 stride) {
@@ -1362,6 +1417,8 @@ namespace dxvk {
       ctx->draw(1u, &draw);
       ctx->bindVertexBuffer(0, DxvkBufferSlice(), 0);
     });
+
+    PostDraw(mode);
   }
 
   GrColorFormat_t GlideDevice::GetColorFormat() const {
@@ -1398,7 +1455,7 @@ namespace dxvk {
     if (tmu >= m_boardConfiguration.tmuCount)
       return 0;
 
-    return m_tmu[tmu]->GetMaximumAddress() - 16;
+    return m_tmu[tmu]->GetMaximumAddress();
   }
 
   void GlideDevice::GetViewportDimensions(FxU32* x, FxU32* y, FxU32* width, FxU32* height) {
@@ -1730,28 +1787,23 @@ namespace dxvk {
     }
   }
 
-  void GlideDevice::SetDepthBiasLevel(FxI32 level) {
+  void GlideDevice::SetDepthBiasLevel(FxI32 level) {\
     if (m_state.depthBiasLevel != level) {
       m_state.depthBiasLevel = level;
-      m_dirty.set(GlideDeviceDirtyFlag::Depth);
+      m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
     }
   }
 
   void GlideDevice::SetDepthBufferFunction(GrCmpFnc_t function) {
     if (m_state.depthFunction != function) {
       m_state.depthFunction = function;
-      m_dirty.set(GlideDeviceDirtyFlag::Depth);
+      m_dirty.set(GlideDeviceDirtyFlag::Depth, GlideDeviceDirtyFlag::PushDataFfps);
     }
   }
 
   void GlideDevice::SetDepthBufferMode(GrDepthBufferMode_t mode) {
     if (m_state.depthMode != mode) {
       m_state.depthMode = mode;
-      if (unlikely(m_state.depthMode == GR_DEPTHBUFFER_WBUFFER_COMPARE_TO_BIAS || m_state.depthMode == GR_DEPTHBUFFER_ZBUFFER_COMPARE_TO_BIAS)) {
-        static bool sWarnShown = false;
-        if (!std::exchange(sWarnShown, true))
-          Logger::warn(str::format("Unsupported depth compare to bias mode: ", mode));
-      }
       m_dirty.set(GlideDeviceDirtyFlag::Depth, GlideDeviceDirtyFlag::PushDataFfps);
     }
   }
@@ -1759,7 +1811,7 @@ namespace dxvk {
   void GlideDevice::SetDepthMask(FxBool mask) {
     if (m_state.depthMask != mask) {
       m_state.depthMask = mask;
-      m_dirty.set(GlideDeviceDirtyFlag::Depth);
+      m_dirty.set(GlideDeviceDirtyFlag::Depth, GlideDeviceDirtyFlag::PushDataFfps);
     }
   }
 
@@ -2119,26 +2171,25 @@ namespace dxvk {
       GrSplashPlugProc fxSplashPlug = reinterpret_cast<GrSplashPlugProc>(GetProcAddress(splashLibrary, "_fxSplashPlug@16"));
       GrSplashShutdownProc fxSplashShutdown = reinterpret_cast<GrSplashShutdownProc>(GetProcAddress(splashLibrary, "_fxSplashShutdown@0"));
 
-      glide2x::GrState glideState;
-      GetState(&glideState);
-      m_ignoreGetSetState = FXTRUE;
       FxBool success = ((fxSplash != NULL) && (fxSplashInit != NULL) && (fxSplashPlug != NULL) && (fxSplashShutdown != NULL));
       if (success) {
         success = fxSplashInit(reinterpret_cast<FxU32>(m_window), width, height, m_colorBuffers, m_auxBuffers, m_state.colorFormat);
         if (success) {
+          GrOriginLocation_t location = m_state.originLocation;
           if (m_api == GLIDEAPI::API_GLIDE_3X)
             SetOriginLocation(GR_ORIGIN_LOWER_LEFT);
 
           fxSplash(x, y, width, height, frame);
           fxSplashShutdown();
+
+          if (m_api == GLIDEAPI::API_GLIDE_3X)
+            SetOriginLocation(location);
         }
       } else {
         doSplash(this, x, y, width, height, frame);
       }
 
       FreeLibrary(splashLibrary);
-      m_ignoreGetSetState = FXFALSE;
-      SetState(&glideState);
     } else {
       doSplash(this, x, y, width, height, frame);
     }
@@ -2181,7 +2232,7 @@ namespace dxvk {
   void GlideDevice::GetVertexLayoutState(void *layout) {
     GlideDeviceLock lock = LockDevice();
 
-    if (layout == nullptr || m_ignoreGetSetState)
+    if (layout == nullptr)
       return;
 
     uint32_t id = ++m_vertexLayoutLastID;
@@ -2192,7 +2243,7 @@ namespace dxvk {
   void GlideDevice::SetVertexLayoutState(const void *layout) {
     GlideDeviceLock lock = LockDevice();
 
-    if (layout == nullptr || m_ignoreGetSetState)
+    if (layout == nullptr)
       return;
 
     uint32_t id = (static_cast<const uint32_t *>(layout))[0];
@@ -2206,7 +2257,7 @@ namespace dxvk {
   void GlideDevice::GetState(void *state) {
     GlideDeviceLock lock = LockDevice();
 
-    if (state == nullptr || m_ignoreGetSetState)
+    if (state == nullptr)
       return;
 
     uint32_t id = ++m_stateLastID;
@@ -2217,7 +2268,7 @@ namespace dxvk {
   void GlideDevice::SetState(const void *state) {
     GlideDeviceLock lock = LockDevice();
 
-    if (state == nullptr || m_ignoreGetSetState)
+    if (state == nullptr)
       return;
 
     uint32_t id = (static_cast<const uint32_t *>(state))[0];

@@ -58,6 +58,7 @@ struct GlideFfpsPushData {
     uint stipplePattern;
 
     uint combinerPixelFx;
+    int depthBias;
 
     vec2 depth;
 };
@@ -98,6 +99,8 @@ spirv_instruction(set = "GLSL.std.450", id = 81) vec4 spvNClamp(vec4, vec4, vec4
 #define SPEC_DATA_SET           3
 
 #define CBV_PS_SHARED           2
+
+#define DEPTH_IDX               3
 
 layout(set = SPEC_DATA_SET, binding = 0, scalar) uniform SpecConsts {
     uint chromaMode;

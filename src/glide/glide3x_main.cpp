@@ -1022,7 +1022,7 @@ extern "C" {
     if (unlikely(glideDevice == nullptr))
       return 0;
 
-    return glideDevice->GetTMUMaxAddress(tmu);
+    return glideDevice->GetTMUMaxAddress(tmu) - SST1_TEXTURE_ALIGN;
   }
 
   DLLEXPORT FxU32 __stdcall grTexMinAddress(GrChipID_t tmu) {

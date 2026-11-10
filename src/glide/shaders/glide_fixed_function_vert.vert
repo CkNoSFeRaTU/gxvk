@@ -125,7 +125,7 @@ vec3 selectSTW(uint tmu, float W) {
   return vec3(st, q);
 }
 
-vec4 transformVertex() {
+vec4 transformVertex(float W) {
     vec4 result;
 
     result = vec4(in_XY, 0.0, 1.0);
@@ -137,18 +137,22 @@ vec4 transformVertex() {
 
     if (global.coordinateSpace == GR_WINDOW_COORDS) {
       result.xy = vec2(result.xy) / vec2(global.viewport.extent) * 2.0 - 1.0;
+    } else {
+      result.z = in_Z;
+      result.w = W;
     }
 
     return result;
 }
 
 void main() {
-    gl_Position = transformVertex();
-    gl_PointSize = 1.0;
-
     out_Z = vertexHasZ() && !isinf(in_Z) && !isnan(in_Z) ? in_Z : 0.0;
     out_Q = vertexHasQ() && !isinf(in_Q) && !isnan(in_Q) ? in_Q : 1.0;
-    out_W = vertexHasW() && !isinf(in_W) && !isnan(in_W) ? (glide3x() ? 1.0 / in_W : in_W) : out_Q;
+    out_W = vertexHasW() && !isinf(in_W) && !isnan(in_W) ? in_W : out_Q;
+
+    gl_Position = transformVertex(out_W);
+    gl_PointSize = 1.0;
+
     out_STQ0 = selectSTW(0, out_W);
     out_STQ1 = selectSTW(1, out_W);
     out_STQ2 = selectSTW(2, out_W);
@@ -156,10 +160,13 @@ void main() {
 
     out_Color = vec4(0.0);
     if (vertexHasRGB() && !(any(isnan(in_RGB))) && !(isnan(in_A))) {
-      out_Color = vec4(in_RGB / GLIDE_COLOR_MAX, in_A / GLIDE_COLOR_MAX);
+      out_Color = vec4(in_RGB, in_A);
     } else if (!any(isnan(vec4(in_PARGB)))) {
-      out_Color = swizzleColor(GR_COLORFORMAT_BGRA, in_PARGB) / GLIDE_COLOR_MAX;
+      out_Color = swizzleColor(GR_COLORFORMAT_BGRA, in_PARGB);
     }
+
+    if (global.coordinateSpace == GR_WINDOW_COORDS)
+      out_Color = out_Color / GLIDE_COLOR_MAX;
 
     out_Color = clamp(out_Color, 0.0, 1.0);
 }

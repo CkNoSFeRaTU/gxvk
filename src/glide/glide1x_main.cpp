@@ -85,7 +85,7 @@ extern "C" {
     if (unlikely(glideDevice == nullptr))
       return;
 
-    glideDevice->DrawTriangle(a, b, c);
+    glideDevice->DrawTriangle(a, b, c, ab_antialias, bc_antialias, ca_antialias);
   }
 
   DLLEXPORT void __stdcall grAlphaBlendFunction(GrAlphaBlendFnc_t rgb_sf, GrAlphaBlendFnc_t rgb_df, GrAlphaBlendFnc_t alpha_sf, GrAlphaBlendFnc_t alpha_df) {
@@ -411,21 +411,6 @@ extern "C" {
     LFB.origin = GR_ORIGIN_UPPER_LEFT;
     LFB.writeMode = GR_LFBWRITEMODE_8888;
     LFB.enabled = FXFALSE;
-
-    glideDevice->SetCoordinateSpace(glide3x::GR_WINDOW_COORDS);
-    glideDevice->SetVertexLayout(glide3x::GR_PARAM_XY, glide3x::GR_PARAM_ENABLE, 0);
-    // 3Dfx headers says that Z is ignored, so not likely to be populated by games
-    // glideDevice->SetVertexLayout(glide3x::GR_PARAM_Z, glide3x::GR_PARAM_ENABLE, 8);
-    glideDevice->SetVertexLayout(glide3x::GR_PARAM_RGB, glide3x::GR_PARAM_ENABLE, 12);
-    // ooz
-    glideDevice->SetVertexLayout(glide3x::GR_PARAM_Z, glide3x::GR_PARAM_ENABLE, 24);
-    glideDevice->SetVertexLayout(glide3x::GR_PARAM_A, glide3x::GR_PARAM_ENABLE, 28);
-    // oow
-    glideDevice->SetVertexLayout(glide3x::GR_PARAM_W, glide3x::GR_PARAM_ENABLE, 32);
-    glideDevice->SetVertexLayout(glide3x::GR_PARAM_ST0, glide3x::GR_PARAM_ENABLE, 36);
-    glideDevice->SetVertexLayout(glide3x::GR_PARAM_Q0, glide3x::GR_PARAM_ENABLE, 44);
-    glideDevice->SetVertexLayout(glide3x::GR_PARAM_ST1, glide3x::GR_PARAM_ENABLE, 48);
-    glideDevice->SetVertexLayout(glide3x::GR_PARAM_Q1, glide3x::GR_PARAM_ENABLE, 56);
   }
 
   DLLEXPORT void __stdcall grGlideSetState(const glide1x::GrState *state) {
@@ -597,7 +582,7 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grSstIdle(void) {
-    DEBUGLOG("stub: grSstIdle");
+    DEBUGLOG(">>> grSstIdle");
   }
 
   DLLEXPORT FxBool __stdcall grSstIsBusy(void) {
@@ -723,7 +708,7 @@ extern "C" {
 
     // we are not in CRT days, no retrace
 
-    return FXFALSE;
+    return FXTRUE;
   }
 
   DLLEXPORT void __stdcall grSstVidMode(FxU32 whichSst, FxVideoTimingInfo *vidTimings) {
@@ -924,7 +909,7 @@ extern "C" {
     if (unlikely(glideDevice == nullptr))
       return 0;
 
-    return glideDevice->GetTMUMaxAddress(tmu);
+    return glideDevice->GetTMUMaxAddress(tmu) - SST1_TEXTURE_ALIGN;
   }
 
   DLLEXPORT FxU32 __stdcall grTexMinAddress(GrChipID_t tmu) {
@@ -1231,8 +1216,15 @@ extern "C" {
   }
 
   DLLEXPORT FxU32 __stdcall guTexMemQueryAvail(GrChipID_t tmu) {
-    DEBUGLOG("stub: guTexMemQueryAvail");
-    return 0;
+    DEBUGLOG(">>> guTexMemQueryAvail");
+
+    Rc<GlideTMU> TMU = glideDevice->GetTMU(tmu);
+    if (unlikely(TMU == nullptr))
+      return 0;
+
+    // TODO: proper free size when guTex* implemented
+
+    return TMU->GetMaximumAddress();
   }
 
   DLLEXPORT void __stdcall guTexMemReset(void) {

@@ -5,10 +5,10 @@
 
 namespace dxvk {
 
-  GlideTMU::GlideTMU(GlideDevice *parent, GrChipID_t id)
+  GlideTMU::GlideTMU(GlideDevice *parent, GrChipID_t id, FxU32 size)
   : m_parent(parent)
   , m_id(id)
-  , m_size(m_parent->GetBoardConfiguration()->tmuRam * 1024 * 1024)
+  , m_size(size)
   , m_buffer(std::make_unique<uint8_t[]>(m_size)) {
   }
 
@@ -44,7 +44,7 @@ namespace dxvk {
       }
 
       DEBUGLOG(str::format("TMU ", m_id, " texture ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", mipmap.width, "x", mipmap.height, " copying at address ", subStartAddress, "-", subStopAddress));
-      memcpy(m_buffer.get() + subStartAddress, metadata.data, mipmap.size);
+      memcpy(m_buffer.get() + subStartAddress, metadata.data + mipmap.offset, mipmap.size);
       DEBUGLOG(str::format("TMU ", m_id, " texture ", UtilInternalFormatToString(UtilTexFormatToInternalFormat(metadata.format)), " ", mipmap.width, "x", mipmap.height, " has been uploaded at address ", subStartAddress, "-", subStopAddress));
     }
 
@@ -351,7 +351,7 @@ namespace dxvk {
           0, 0, cColorFormat);
       });
 
-      if (metadata.format == GR_TEXFMT_P_8 || metadata.format == GR_TEXFMT_AP_88 
+      if (metadata.format == GR_TEXFMT_P_8 || metadata.format == GR_TEXFMT_AP_88
         || metadata.format == GR_TEXFMT_P_8_6666 || metadata.format == GR_TEXFMT_P_8_6666_EXT) {
         tmuTexture.hash = calculateHash(&m_palette);
       } else if (metadata.format == GR_TEXFMT_YIQ_422) {

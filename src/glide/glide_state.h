@@ -16,7 +16,7 @@ namespace dxvk {
     glide3x::GrDrawVertexArrayMode_t mode;
   };
 
-  static constexpr uint32_t SamplerCount      = GLIDE_MAX_TEXTURESTAGES * 2;
+  static constexpr uint32_t SamplerCount      = (GLIDE_MAX_TEXTURESTAGES + 1) * 2;
   static constexpr uint32_t FirstVSSamplerSlot = GLIDE_MAX_TEXTURESTAGES + 1;
   constexpr bool IsVSSampler(uint32_t Sampler) {
     return Sampler >= FirstVSSamplerSlot;
@@ -60,6 +60,7 @@ namespace dxvk {
     uint32_t fogColor = 0u;
     uint32_t stipplePattern = 0u;
     uint32_t combinerPixelFx = 0u;
+    uint32_t depthBias = 0u;
 
     float depth[2] = {0.0f, 0.0f};
   };

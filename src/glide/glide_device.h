@@ -286,7 +286,7 @@ namespace dxvk {
     void UtilFogGenerateLinear(GrFog_t* table, FxFloat nearZ, FxFloat farZ);
     void UtilFogGenerateExp(GrFog_t* fogTable, FxFloat density);
     void UtilFogGenerateExp2(GrFog_t* fogTable, FxFloat density);
-      
+
     DxvkStagingBuffer* GetStagingBuffer() {
       return &m_stagingBuffer;
     }
@@ -410,6 +410,7 @@ namespace dxvk {
     void UpdatePushDataBlock(const T& Block);
     void UpdatePushData();
     void PrepareDraw(glide3x::GrDrawVertexArrayMode_t primitiveTopology);
+    void PostDraw(glide3x::GrDrawVertexArrayMode_t primitiveTopology);
 
     GLIDEAPI m_api;
     Rc<DxvkInstance>                m_instance;
@@ -449,7 +450,7 @@ namespace dxvk {
     DxvkDepthBiasRepresentation     m_depthBiasRepresentation = { VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORMAT_EXT, false };
     float                           m_depthBiasScale  = 0.0f;
 
-    std::atomic<uint32_t> m_refCount = { 0u };
+    std::atomic<uint32_t>           m_refCount = { 0u };
 
     std::array<
       Rc<GlideTMU>,
@@ -464,9 +465,9 @@ namespace dxvk {
       FxU32 height = 0;
       FxU32 refreshRate = 0;
     } m_screen;
-    FxBool logoShown = FXFALSE;
+    FxBool                         logoShown = FXFALSE;
 
-    Rc<GlideCommonTexture> m_rt = nullptr;
+    Rc<GlideCommonTexture>         m_rt = nullptr;
 
     GlideState                     m_state;
     constexpr static uint32_t      SamplerCountBits = 12u;
@@ -474,9 +475,10 @@ namespace dxvk {
     uint64_t                       m_samplerBindCount = 0u;
     std::atomic<uint32_t>          m_vertexLayoutLastID = { 0u };
     std::atomic<uint32_t>          m_stateLastID = { 0u };
-    std::unordered_map<int, GlideVertex> m_vertexLayouts;
-    std::unordered_map<int, GlideState> m_states;
-    FxBool                         m_ignoreGetSetState = FXFALSE;
+    std::unordered_map<int,
+      GlideVertex>                 m_vertexLayouts;
+    std::unordered_map<int,
+      GlideState>                  m_states;
   };
 
 }
