@@ -112,8 +112,8 @@ namespace dxvk {
     return &it->second;
   }
 
-  void GlideTMU::SelectNCCTable(GrTexTable_t table) {
-    if (unlikely(table != GR_TEXTABLE_NCC0 && table != GR_TEXTABLE_NCC1))
+  void GlideTMU::SelectNCCTable(GrNCCTable_t table) {
+    if (unlikely(table != GR_NCCTABLE_NCC0 && table != GR_NCCTABLE_NCC1))
       return;
 
     m_currentNcc = table;
@@ -178,21 +178,10 @@ namespace dxvk {
       }
       case GR_TEXTABLE_NCC0:
       case GR_TEXTABLE_NCC1: {
-        if (start > stop)
-          return FXFALSE;
-
-        if (start == -1 && stop == -1) {
-          start = 0;
-          stop = sizeof(GuNccTable) - 1;
-        }
-
-        start = std::clamp(start, 0, int(sizeof(GuNccTable) - 1));
-        stop = std::clamp(stop, 0, int(sizeof(GuNccTable) - 1));
-
-        FxU32 length = 1 + stop - start;
+        // docs says that partial download for NCC are unsupported
         auto &ncc = m_ncc[type == GR_TEXTABLE_NCC0 ? 0 : 1];
-        memcpy(ncc.data() + start, data, length);
-        m_hashes[GR_TEXTABLE_NCC0 ? 1 : 2] = calculateHash(&ncc);
+        memcpy(ncc.data(), data, sizeof(GuNccTable));
+        m_hashes[type == GR_TEXTABLE_NCC0 ? 1 : 2] = calculateHash(&ncc);
 
         DEBUGLOG(str::format("TMU ", m_id, " NCC applied"));
         return FXTRUE;
@@ -276,10 +265,8 @@ namespace dxvk {
       if (metadata.format == GR_TEXFMT_P_8 || metadata.format == GR_TEXFMT_AP_88
         || metadata.format == GR_TEXFMT_P_8_6666 || metadata.format == GR_TEXFMT_P_8_6666_EXT) {
         skip = tmuTexture.hash == m_hashes[0];
-      } else if (metadata.format == GR_TEXFMT_YIQ_422) {
-        skip = tmuTexture.hash == m_hashes[1];
-      } else if (metadata.format == GR_TEXFMT_AYIQ_8422) {
-        skip = tmuTexture.hash == m_hashes[2];
+      } else if (metadata.format == GR_TEXFMT_YIQ_422 || metadata.format == GR_TEXFMT_AYIQ_8422) {
+        skip = tmuTexture.hash == m_hashes[m_currentNcc == GR_NCCTABLE_NCC0 ? 1 : 2];
       }
 
       if (likely(skip)) {
@@ -323,10 +310,8 @@ namespace dxvk {
       pixelData.resize(bufferSize);
 
       GuNccTable *ncc = nullptr;
-      if (unlikely(metadata.format == GR_TEXFMT_YIQ_422))
-        ncc = reinterpret_cast<GuNccTable*>(m_ncc[0].data());
-      else if (unlikely(metadata.format == GR_TEXFMT_AYIQ_8422))
-        ncc = reinterpret_cast<GuNccTable*>(m_ncc[1].data());
+      if (unlikely(metadata.format == GR_TEXFMT_YIQ_422 || metadata.format == GR_TEXFMT_AYIQ_8422))
+        ncc = reinterpret_cast<GuNccTable*>(m_ncc[m_currentNcc == GR_NCCTABLE_NCC0 ? 0 : 1].data());
 
       UtilConvertImageToRGBA(UtilTexFormatToInternalFormat(metadata.format), metadata.data, pixelData.data(), components, dstPitch, mipmap.width, mipmap.height, m_palette6666set, &m_palette, ncc);
       VkDeviceSize pitch = align(dstPitch, components);
@@ -354,10 +339,8 @@ namespace dxvk {
       if (metadata.format == GR_TEXFMT_P_8 || metadata.format == GR_TEXFMT_AP_88
         || metadata.format == GR_TEXFMT_P_8_6666 || metadata.format == GR_TEXFMT_P_8_6666_EXT) {
         tmuTexture.hash = calculateHash(&m_palette);
-      } else if (metadata.format == GR_TEXFMT_YIQ_422) {
-        tmuTexture.hash = calculateHash(&m_ncc[0]);
-      } else if (metadata.format == GR_TEXFMT_AYIQ_8422) {
-        tmuTexture.hash = calculateHash(&m_ncc[1]);
+      } else if (metadata.format == GR_TEXFMT_YIQ_422 || metadata.format == GR_TEXFMT_AYIQ_8422) {
+        tmuTexture.hash = calculateHash(&m_ncc[m_currentNcc == GR_NCCTABLE_NCC0 ? 0 : 1]);
       }
 
       tmuTexture.upToDate = true;

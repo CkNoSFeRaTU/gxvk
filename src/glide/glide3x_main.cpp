@@ -745,6 +745,9 @@ extern "C" {
     if (!glideDevice->LinearBufferUnlock(GR_LFB_WRITE_ONLY, dstBuffer))
       return FXFALSE;
 
+    if (dstBuffer == GR_BUFFER_FRONTBUFFER)
+      glideDevice->BufferSwap(false);
+
     return FXTRUE;
   }
 
@@ -775,13 +778,22 @@ extern "C" {
   }
 
   DLLEXPORT FxBool __stdcall grReset(glide3x::GrGetReset_t pname) {
-    DEBUGLOG("stub: grReset");
-    return FXFALSE;
+    DEBUGLOG(">>> grReset");
+
+    // we are not reporting stats back so nothing to reset
+
+    return FXTRUE;
   }
 
   DLLEXPORT FxBool __stdcall grSelectContext(GrContext_t context) {
-    DEBUGLOG("stub: grSelectContext");
-    return FXFALSE;
+    DEBUGLOG(">>> grSelectContext");
+
+    if (context != 1) {
+      Logger::warn(str::format("Unexpected context: ", context));
+      return FXFALSE;
+    }
+
+    return FXTRUE;
   }
 
   DLLEXPORT void __stdcall grSetNumPendingBuffers(FxI32 NumPendingBuffers) {
@@ -966,17 +978,11 @@ extern "C" {
     if (unlikely(glideDevice == nullptr || data == nullptr))
       return;
 
-    Rc<GlideTMU> TMU = glideDevice->GetTMU(GR_TMU0);
-    if (unlikely(TMU != nullptr))
-      TMU->SetTable(type, data);
-
-    TMU = glideDevice->GetTMU(GR_TMU1);
-    if (unlikely(TMU != nullptr))
-      TMU->SetTable(type, data);
-
-    TMU = glideDevice->GetTMU(GR_TMU2);
-    if (unlikely(TMU != nullptr))
-      TMU->SetTable(type, data);
+    for (FxI32 i = 0; i < glideDevice->GetBoardConfiguration()->tmuCount; i++) {
+      Rc<GlideTMU> TMU = glideDevice->GetTMU(static_cast<GrChipID_t>(i));
+      if (likely(TMU != nullptr))
+        TMU->SetTable(type, data);
+    }
   }
 
   DLLEXPORT void __stdcall grTexDownloadTablePartial(GrTexTable_t type, void * data, FxI32 start, FxI32 end) {
@@ -985,17 +991,11 @@ extern "C" {
     if (unlikely(glideDevice == nullptr || data == nullptr))
       return;
 
-    Rc<GlideTMU> TMU = glideDevice->GetTMU(GR_TMU0);
-    if (unlikely(TMU != nullptr))
-      TMU->SetTable(type, data, start, end);
-
-    TMU = glideDevice->GetTMU(GR_TMU1);
-    if (unlikely(TMU != nullptr))
-      TMU->SetTable(type, data, start, end);
-
-    TMU = glideDevice->GetTMU(GR_TMU2);
-    if (unlikely(TMU != nullptr))
-      TMU->SetTable(type, data, start, end);
+    for (FxI32 i = 0; i < glideDevice->GetBoardConfiguration()->tmuCount; i++) {
+      Rc<GlideTMU> TMU = glideDevice->GetTMU(static_cast<GrChipID_t>(i));
+      if (likely(TMU != nullptr))
+        TMU->SetTable(type, data, start, end);
+    }
   }
 
   DLLEXPORT void __stdcall grTexFilterMode(GrChipID_t tmu, GrTextureFilterMode_t minfilter_mode, GrTextureFilterMode_t magfilter_mode) {
@@ -1052,7 +1052,16 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall grTexNCCTable(GrNCCTable_t table) {
-    DEBUGLOG("stub: grTexNCCTable");
+    DEBUGLOG(">>> grTexNCCTable");
+
+    if (table != GR_NCCTABLE_NCC0 && table != GR_NCCTABLE_NCC1)
+      return;
+
+    for (FxI32 i = 0; i < glideDevice->GetBoardConfiguration()->tmuCount; i++) {
+      Rc<GlideTMU> TMU = glideDevice->GetTMU(static_cast<GrChipID_t>(i));
+      if (likely(TMU != nullptr))
+        TMU->SelectNCCTable(table);
+    }
   }
 
   DLLEXPORT void __stdcall grTexSource(GrChipID_t tmu, FxU32 startAddress, MipMapLevelMask_t evenOdd, glide3x::GrTexInfo* info) {

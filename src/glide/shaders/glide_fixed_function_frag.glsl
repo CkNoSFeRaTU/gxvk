@@ -517,6 +517,7 @@ float depthFP(uint depthMode, float oow, float ooz) {
   float depth = 0.0;
   if (depthMode == GR_DEPTHBUFFER_WBUFFER || depthMode == GR_DEPTHBUFFER_WBUFFER_COMPARE_TO_BIAS) {
     float W = global.coordinateSpace == GR_CLIP_COORDS ? in_W : 1.0 / in_W;
+    W = mod(W - 1.0, 65536.0) + 1.0;
     W = clamp(W, 1.0, 65528.0);
     float exponent = trunc(log2(W));
 
@@ -580,7 +581,7 @@ void main() {
     if (!passed) {
       demote;
     } else {
-      depth = in_W;
+      depth = depthFP(depthMode, in_W, in_Z);
     }
   } else {
     depth = depthFP(depthMode, in_W, in_Z);

@@ -253,9 +253,19 @@ namespace dxvk {
   void GlideDevice::WindowClose() {
     GlideDeviceLock lock = LockDevice();
 
-    if (!m_glideOptions.deviceReset && m_swapchain != nullptr) {
-      delete m_swapchain;
-      m_swapchain = nullptr;
+    if (m_swapchain != nullptr) {
+      if (!m_glideOptions.deviceReset) {
+        SwapChainDesc desc;
+        desc.BackBufferWidth = m_screen.width;
+        desc.BackBufferHeight = m_screen.height;
+        desc.RefreshRate = m_screen.refreshRate;
+        desc.BufferCount = m_colorBuffers;
+        desc.AuxBufferCount = m_auxBuffers;
+        m_swapchain->Reset(m_window, &desc);
+      } else {
+        delete m_swapchain;
+        m_swapchain = nullptr;
+      }
     }
   }
 
@@ -441,7 +451,7 @@ namespace dxvk {
     if (m_swapchain == nullptr)
       return;
 
-    m_swapchain->BufferSwap(true, swapInterval);
+    m_swapchain->BufferSwap(GetRenderBuffer() == GR_BUFFER_FRONTBUFFER ? false : true, swapInterval);
     m_dirty.set(GlideDeviceDirtyFlag::Framebuffer);
   }
 

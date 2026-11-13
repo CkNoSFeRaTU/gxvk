@@ -162,13 +162,10 @@ namespace dxvk {
         if (BlockSize != nullptr)
           *BlockSize = 16;
         break;
-      case GR_FMT_RGB_888:
-        if (BlockSize != nullptr)
-          *BlockSize = 24;
-        break;
       case GR_FMT_RGB_555_DEPTH:
       case GR_FMT_RGB_565_DEPTH:
       case GR_FMT_ARGB_1555_DEPTH:
+      case GR_FMT_RGB_888:
       case GR_FMT_ARGB_8888:
         if (BlockSize != nullptr)
           *BlockSize = 32;
@@ -876,14 +873,6 @@ namespace dxvk {
             }
             break;
           }
-          case GR_FMT_RGB_888: {
-            for (uint32_t x = region.offset.x; x < region.extent.width; ++x) {
-              dst[3 * x + 0] = r;
-              dst[3 * x + 1] = g;
-              dst[3 * x + 2] = b;
-            }
-            break;
-          }
           case GR_FMT_ARGB_1555: {
             for (uint32_t x = region.offset.x; x < region.extent.width; ++x) {
               reinterpret_cast<uint16_t*>(dst)[x] = ((a > 0 ? 1 : 0) << 15) | ((r * 0x1F / 0xFF) << 10) | ((g * 0x1F / 0xFF) << 5) | (b * 0x1F / 0xFF);
@@ -896,12 +885,15 @@ namespace dxvk {
             }
             break;
           }
+          case GR_FMT_RGB_888: {
+            for (uint32_t x = region.offset.x; x < region.extent.width; ++x) {
+              reinterpret_cast<uint32_t*>(dst)[x] = (0xFF << 24) | (r << 16) | (g << 8) | b;
+            }
+            break;
+          }
           case GR_FMT_ARGB_8888: {
             for (uint32_t x = region.offset.x; x < region.extent.width; ++x) {
-              dst[3 * x + 0] = a;
-              dst[3 * x + 1] = r;
-              dst[3 * x + 2] = g;
-              dst[3 * x + 3] = b;
+              reinterpret_cast<uint32_t*>(dst)[x] = (a << 24) | (r << 16) | (g << 8) | b;
             }
             break;
           }
@@ -948,19 +940,6 @@ namespace dxvk {
             }
             break;
           }
-          case GR_FMT_RGB_888: {
-            for (uint32_t x = 0; x < width; ++x) {
-              const uint32_t idxDst = x * 3;
-              const uint32_t idxSrc = x * 4;
-              const uint8_t r = src[idxSrc];
-              const uint8_t g = src[idxSrc + 1];
-              const uint8_t b = src[idxSrc + 2];
-              dst[idxDst    ] = r;
-              dst[idxDst + 1] = g;
-              dst[idxDst + 2] = b;
-            }
-            break;
-          }
           case GR_FMT_ARGB_1555: {
             for (uint32_t x = 0; x < width; ++x) {
               const uint32_t idxSrc = x * 4;
@@ -983,18 +962,24 @@ namespace dxvk {
             }
             break;
           }
+          case GR_FMT_RGB_888: {
+            for (uint32_t x = 0; x < width; ++x) {
+              const uint32_t idxSrc = x * 4;
+              const uint8_t r = src[idxSrc];
+              const uint8_t g = src[idxSrc + 1];
+              const uint8_t b = src[idxSrc + 2];
+              reinterpret_cast<uint32_t*>(dst)[x] = (0xFF << 24) | (r << 16) | (g << 8) | b;
+            }
+            break;
+          }
           case GR_FMT_ARGB_8888: {
             for (uint32_t x = 0; x < width; ++x) {
-              const uint32_t idxDst = x * 3;
               const uint32_t idxSrc = x * 4;
               const uint8_t r = src[idxSrc];
               const uint8_t g = src[idxSrc + 1];
               const uint8_t b = src[idxSrc + 2];
               const uint8_t a = src[idxSrc + 3];
-              dst[idxDst    ] = a;
-              dst[idxDst + 1] = r;
-              dst[idxDst + 2] = g;
-              dst[idxDst + 3] = b;
+              reinterpret_cast<uint32_t*>(dst)[x] = (a << 24) | (r << 16) | (g << 8) | b;
             }
             break;
           }
@@ -1012,6 +997,10 @@ namespace dxvk {
     return FXTRUE;
   }
 
+  static inline int16_t signExtend9(uint16_t v) {
+    return (v & 0x0100) ? static_cast<int16_t>(v | 0xFE00) : static_cast<int16_t>(v);
+  }
+
   FxBool UtilConvertImageToRGBA(GrIntFmt_t format, const void* srcPtr, void* dstPtr, FxU32& dstComponents, FxU32& dstPitch, FxU32 width, FxU32 height
         , FxBool isPalette6666, const std::array<FxU32, VOODOO_PALETTE_TABLE_SIZE> *palette, const GuNccTable *ncc, GrColorFormat_t *colorFormat) {
     FxU32 blockSize = 0;
@@ -1023,7 +1012,6 @@ namespace dxvk {
       case GR_FMT_RGB_555_DEPTH:
       case GR_FMT_RGB_565:
       case GR_FMT_RGB_565_DEPTH:
-      case GR_FMT_RGB_888:
       case GR_FMT_P_8:
       case GR_FMT_UYVY_422:
       case GR_FMT_YUYV_422:
@@ -1031,6 +1019,7 @@ namespace dxvk {
         if (dstComponents != 4)
           dstComponents = 3;
         break;
+      case GR_FMT_RGB_888:
       case GR_FMT_ARGB_1555:
       case GR_FMT_ARGB_1555_DEPTH:
       case GR_FMT_ARGB_4444:
@@ -1137,17 +1126,6 @@ namespace dxvk {
               dst[idxDst + 3] = 0xFF;
           }
           break;
-        case GR_FMT_RGB_888:
-          for (uint32_t x = 0; x < width; ++x) {
-            const uint32_t idxDst = dstComponents * x;
-            const uint32_t idxSrc = x * 3;
-            dst[idxDst    ] = src[idxSrc + 2];
-            dst[idxDst + 1] = src[idxSrc + 1];
-            dst[idxDst + 2] = src[idxSrc + 0];
-            if (dstComponents == 4)
-              dst[idxDst + 3] = 0xFF;
-          }
-          break;
         case GR_FMT_ARGB_1555:
           for (uint32_t x = 0; x < width; ++x) {
             const uint32_t idxDst = dstComponents * x;
@@ -1176,6 +1154,16 @@ namespace dxvk {
             dst[idxDst + 1] = ((pixel >> 4 ) & 0x0f) * 0x11;
             dst[idxDst + 2] = ( pixel        & 0x0f) * 0x11;
             dst[idxDst + 3] = ((pixel >> 12) & 0x0f) * 0x11;
+          }
+          break;
+        case GR_FMT_RGB_888:
+          for (uint32_t x = 0; x < width; ++x) {
+            const uint32_t idxDst = dstComponents * x;
+            const uint32_t idxSrc = x * 4;
+            dst[idxDst    ] = src[idxSrc + 2];
+            dst[idxDst + 1] = src[idxSrc + 1];
+            dst[idxDst + 2] = src[idxSrc + 0];
+            dst[idxDst + 3] = 0xFF;
           }
           break;
         case GR_FMT_ARGB_8888:
@@ -1301,15 +1289,25 @@ namespace dxvk {
           break;
         case GR_FMT_YIQ_422:
           for (uint32_t x = 0; x < width; x++) {
-            const uint32_t idxDst = dstComponents * x;
-            const uint8_t Y = (src[x] >> 4) & 0x0F;
-            const uint8_t A = (src[x] >> 2) & 0x03;
-            const uint8_t B =  src[x]       & 0x03;
+            const int32_t idxDst = dstComponents * x;
+            const uint8_t pixel = src[x];
+            const uint8_t Y = (pixel >> 4) & 0x0F;
+            const uint8_t I = (pixel >> 2) & 0x03;
+            const uint8_t Q = (pixel     ) & 0x03;
 
-            uint8_t y = ncc->yRGB[Y];
-            dst[idxDst    ] = y + ncc->iRGB[A][0] + ncc->qRGB[B][0];
-            dst[idxDst + 1] = y + ncc->iRGB[A][1] + ncc->qRGB[B][1];
-            dst[idxDst + 2] = y + ncc->iRGB[A][2] + ncc->qRGB[B][2];
+            const uint32_t yWord = ncc->packed_data[Y >> 2];
+            const int y = (yWord >> ((Y & 3) * 8)) & 0xFF;
+
+            const uint32_t iWord = ncc->packed_data[4 + I];
+            const uint32_t qWord = ncc->packed_data[8 + Q];
+
+            const int r = y + signExtend9((iWord >> 18) & 0x1FF) + signExtend9((qWord >> 18) & 0x1FF);
+            const int g = y + signExtend9((iWord >>  9) & 0x1FF) + signExtend9((qWord >>  9) & 0x1FF);
+            const int b = y + signExtend9((iWord      ) & 0x1FF) + signExtend9((qWord      ) & 0x1FF);
+
+            dst[idxDst    ] = std::clamp(r, 0, 255);
+            dst[idxDst + 1] = std::clamp(g, 0, 255);
+            dst[idxDst + 2] = std::clamp(b, 0, 255);
             if (dstComponents == 4)
               dst[idxDst + 3] = 0xFF;
           }
@@ -1318,15 +1316,26 @@ namespace dxvk {
           for (uint32_t x = 0; x < width; x++) {
             const uint32_t idxDst = dstComponents * x;
             const uint16_t pixel = ((const uint16_t *)src)[x];
-            const uint8_t Y = (pixel >> 4) & 0x0F;
-            const uint8_t A = (pixel >> 2) & 0x03;
-            const uint8_t B =  pixel       & 0x03;
 
-            uint8_t y = ncc->yRGB[Y];
-            dst[idxDst    ] = y + ncc->iRGB[A][0] + ncc->qRGB[B][0];
-            dst[idxDst + 1] = y + ncc->iRGB[A][1] + ncc->qRGB[B][1];
-            dst[idxDst + 2] = y + ncc->iRGB[A][2] + ncc->qRGB[B][2];
-            dst[idxDst + 3] = pixel >> 8;
+            const uint8_t A = (pixel >> 8) & 0xFF;
+            const uint8_t Y = (pixel >> 4) & 0x0F;
+            const uint8_t I = (pixel >> 2) & 0x03;
+            const uint8_t Q = (pixel     ) & 0x03;
+
+            const uint32_t yWord = ncc->packed_data[Y >> 2];
+            const int y = (yWord >> ((Y & 3) * 8)) & 0xFF;
+
+            const uint32_t iWord = ncc->packed_data[4 + I];
+            const uint32_t qWord = ncc->packed_data[8 + Q];
+
+            const int r = y + signExtend9((iWord >> 18) & 0x1FF) + signExtend9((qWord >> 18) & 0x1FF);
+            const int g = y + signExtend9((iWord >>  9) & 0x1FF) + signExtend9((qWord >>  9) & 0x1FF);
+            const int b = y + signExtend9((iWord      ) & 0x1FF) + signExtend9((qWord      ) & 0x1FF);
+
+            dst[idxDst    ] = std::clamp(r, 0, 255);
+            dst[idxDst + 1] = std::clamp(g, 0, 255);
+            dst[idxDst + 2] = std::clamp(b, 0, 255);
+            dst[idxDst + 3] = A;
           }
           break;
         default:

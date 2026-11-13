@@ -60,7 +60,7 @@ namespace dxvk {
 
     const TMUTexture* GetTexture(TMUMetadata& metadata);
 
-    void SelectNCCTable(GrTexTable_t table);
+    void SelectNCCTable(GrNCCTable_t table);
 
     FxBool SetTable(GrTexTable_t type, void *data, int start = -1, int stop = -1);
 
@@ -92,7 +92,7 @@ namespace dxvk {
     FxU32                             m_size;
     std::unique_ptr<uint8_t[]>        m_buffer = nullptr;
     std::atomic<uint32_t>             m_refCount = { 0u };
-    GrTexTable_t                      m_currentNcc = GR_TEXTABLE_NCC0;
+    GrNCCTable_t                      m_currentNcc = GR_NCCTABLE_NCC0;
     std::array<FxU32,
       VOODOO_PALETTE_TABLE_SIZE>      m_palette = { };
     std::array<std::array<FxU8,

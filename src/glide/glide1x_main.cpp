@@ -583,10 +583,15 @@ extern "C" {
 
   DLLEXPORT void __stdcall grSstIdle(void) {
     DEBUGLOG(">>> grSstIdle");
+
+    // we are never busy
   }
 
   DLLEXPORT FxBool __stdcall grSstIsBusy(void) {
-    DEBUGLOG("stub: grSstIsBusy");
+    DEBUGLOG(">>> grSstIsBusy");
+
+    // we are never busy
+
     return FXFALSE;
   }
 
@@ -839,22 +844,14 @@ extern "C" {
 
     if (likely(glideDevice->GetOptions()->perTMUTables)) {
       Rc<GlideTMU> TMU = glideDevice->GetTMU(tmu);
-      if (unlikely(TMU == nullptr))
-        return;
-
-      TMU->SetTable(type, data);
+      if (likely(TMU != nullptr))
+        TMU->SetTable(type, data);
     } else {
-      Rc<GlideTMU> TMU = glideDevice->GetTMU(GR_TMU0);
-      if (unlikely(TMU != nullptr))
-        TMU->SetTable(type, data);
-
-      TMU = glideDevice->GetTMU(GR_TMU1);
-      if (unlikely(TMU != nullptr))
-        TMU->SetTable(type, data);
-
-      TMU = glideDevice->GetTMU(GR_TMU2);
-      if (unlikely(TMU != nullptr))
-        TMU->SetTable(type, data);
+      for (FxI32 i = 0; i < glideDevice->GetBoardConfiguration()->tmuCount; i++) {
+        Rc<GlideTMU> TMU = glideDevice->GetTMU(static_cast<GrChipID_t>(i));
+        if (likely(TMU != nullptr))
+          TMU->SetTable(type, data);
+      }
     }
   }
 
@@ -866,22 +863,14 @@ extern "C" {
 
     if (likely(glideDevice->GetOptions()->perTMUTables)) {
       Rc<GlideTMU> TMU = glideDevice->GetTMU(tmu);
-      if (unlikely(TMU == nullptr))
-        return;
-
-      TMU->SetTable(type, data, start, end);
+      if (likely(TMU != nullptr))
+        TMU->SetTable(type, data, start, end);
     } else {
-      Rc<GlideTMU> TMU = glideDevice->GetTMU(GR_TMU0);
-      if (unlikely(TMU != nullptr))
-        TMU->SetTable(type, data, start, end);
-
-      TMU = glideDevice->GetTMU(GR_TMU1);
-      if (unlikely(TMU != nullptr))
-        TMU->SetTable(type, data, start, end);
-
-      TMU = glideDevice->GetTMU(GR_TMU2);
-      if (unlikely(TMU != nullptr))
-        TMU->SetTable(type, data, start, end);
+      for (FxI32 i = 0; i < glideDevice->GetBoardConfiguration()->tmuCount; i++) {
+        Rc<GlideTMU> TMU = glideDevice->GetTMU(static_cast<GrChipID_t>(i));
+        if (likely(TMU != nullptr))
+          TMU->SetTable(type, data, start, end);
+      }
     }
   }
 
@@ -944,11 +933,18 @@ extern "C" {
     if (table != GR_TEXTABLE_NCC0 && table != GR_TEXTABLE_NCC1)
       return;
 
-    Rc<GlideTMU> TMU = glideDevice->GetTMU(tmu);
-    if (unlikely(TMU == nullptr))
-      return;
-
-    TMU->SelectNCCTable(table);
+    const GrNCCTable_t NCCTable = table == GR_TEXTABLE_NCC0 ? GR_NCCTABLE_NCC0 : GR_NCCTABLE_NCC1;
+    if (likely(glideDevice->GetOptions()->perTMUTables)) {
+      Rc<GlideTMU> TMU = glideDevice->GetTMU(tmu);
+      if (likely(TMU != nullptr))
+        TMU->SelectNCCTable(NCCTable);
+    } else {
+      for (FxI32 i = 0; i < glideDevice->GetBoardConfiguration()->tmuCount; i++) {
+        Rc<GlideTMU> TMU = glideDevice->GetTMU(static_cast<GrChipID_t>(i));
+        if (likely(TMU != nullptr))
+          TMU->SelectNCCTable(NCCTable);
+      }
+    }
   }
 
   DLLEXPORT void __stdcall grTexSource(GrChipID_t tmu, FxU32 startAddress, MipMapLevelMask_t evenOdd, glide2x::GrTexInfo *info) {
@@ -1107,6 +1103,9 @@ extern "C" {
     }
 
     glideDevice->LinearBufferUnlock(GR_LFB_WRITE_ONLY, dstBuffer);
+
+    if (dstBuffer == GR_BUFFER_FRONTBUFFER)
+      glideDevice->BufferSwap(false);
   }
 
   DLLEXPORT void __stdcall guFogGenerateExp(GrFog_t *fogTable, float density) {

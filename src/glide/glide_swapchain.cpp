@@ -367,10 +367,13 @@ namespace dxvk {
   }
 
   void GlideSwapChain::BufferSwap(bool doSwap, FxU32 interval) {
+    FxU32 idx = 0;
     if (!doSwap && m_backBuffers.size() > 0)
-      m_backBuffers[0]->ConsiderUpload();
+      idx = 0;
     else if (m_backBuffers.size() > 1)
-      m_backBuffers[1]->ConsiderUpload();
+      idx = 1;
+
+    m_backBuffers[idx]->ConsiderUpload();
 
     const int presentInterval = m_parent->GetOptions()->presentInterval;
     if (presentInterval >= 0)
@@ -389,7 +392,7 @@ namespace dxvk {
     // Retrieve the image and image view to present
     VkResult status = VK_SUCCESS;
 
-    Rc<DxvkImageView> swapImageView = m_backBuffers[0]->GetView(0);
+    Rc<DxvkImageView> swapImageView = m_backBuffers[idx]->GetView(0);
 
     // Presentation semaphores and WSI swap chain image
     PresenterSync sync = { };

@@ -84,6 +84,15 @@ namespace dxvk {
       // have a container and all have identical properties
       std::swap(m_image, Other->m_image);
       std::swap(m_view, Other->m_view);
+      std::swap(m_dirty, Other->m_dirty);
+      std::swap(m_buffer, Other->m_buffer);
+      std::swap(m_origin, Other->m_origin);
+      std::swap(m_blockSize, Other->m_blockSize);
+      std::swap(m_isLocked, Other->m_isLocked);
+      std::swap(m_lockmode, Other->m_lockmode);
+      std::swap(m_data, Other->m_data);
+      std::swap(m_totalSize, Other->m_totalSize);
+      std::swap(m_convertBuffer, Other->m_convertBuffer);
     }
 
   private:
@@ -99,7 +108,7 @@ namespace dxvk {
     GlideTextureDirty             m_dirty = TEXTURE_UPTODATE;
     bool                          m_isLocked = false;
     GrLfbWriteMode_t              m_lockmode = GR_LFBWRITEMODE_565;
-    Rc<DxvkBuffer>                m_buffer;
+    Rc<DxvkBuffer>                m_buffer = nullptr;
     MemoryFileRegion              m_data = { };
     size_t                        m_totalSize = 0u;
     std::vector<uint8_t>          m_convertBuffer = { };
