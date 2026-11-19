@@ -73,13 +73,13 @@ namespace dxvk {
 
     uint32_t GetActualFrameLatency();
 
-    SwapChainDesc m_desc;
-    GlideDevice* m_parent;
-    Rc<DxvkDevice> m_device;
-    HMONITOR                  m_monitor  = nullptr;
-    wsi::DxvkWindowState      m_windowState;
-
-    HWND m_window;
+    SwapChainDesc             m_desc = { };
+    GlideDevice*              m_parent = nullptr;
+    Rc<DxvkDevice>            m_device = nullptr;
+    HMONITOR                  m_monitor = nullptr;
+    HWND                      m_window = nullptr;
+    wsi::WsiMode              m_windowMode = { };
+    wsi::DxvkWindowState      m_windowState = { };
 
     std::atomic<uint32_t>     m_refCount = { 0u };
     VkColorSpaceKHR           m_colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
@@ -87,12 +87,13 @@ namespace dxvk {
     small_vector<Rc<GlideCommonTexture>, GLIDE_MAX_AUX_BUFFERS> m_auxBuffers;
     small_vector<Rc<GlideCommonTexture>, 1>                     m_miscBuffers;
 
-    Rc<DxvkSwapchainBlitter>  m_blitter;
-    Rc<DxvkLatencyTracker>    m_latencyTracker;
-    Rc<hud::HudLatencyItem>   m_latencyHud;
-    Rc<Presenter>             m_presenter;
-    RECT                      m_srcRect;
-    RECT                      m_dstRect;
+    Rc<DxvkSwapchainBlitter>  m_blitter = nullptr;
+    Rc<DxvkLatencyTracker>    m_latencyTracker = nullptr;
+    Rc<hud::HudLatencyItem>   m_latencyHud = nullptr;
+    Rc<hud::Hud>              m_hud = nullptr;
+    Rc<Presenter>             m_presenter = nullptr;
+    RECT                      m_srcRect = { };
+    RECT                      m_dstRect = { };
 
     double                    m_targetFrameRate = 0.0;
     double                    m_displayRefreshRate = 0.0;
@@ -101,9 +102,9 @@ namespace dxvk {
     uint64_t                  m_frameId = GLIDE_MAX_SWAP_CHAIN_BUFFERS;
     uint32_t                  m_frameLatency = DefaultFrameLatency;
     uint32_t                  m_frameLatencyCap = 0;
-    Rc<sync::CallbackFence>   m_frameLatencySignal;
+    Rc<sync::CallbackFence>   m_frameLatencySignal = nullptr;
 
-    std::array<DxvkGammaCp, NumControlPoints> m_gammaTable;
+    std::array<DxvkGammaCp, NumControlPoints> m_gammaTable = { };
   };
 
 }

@@ -1,12 +1,13 @@
+#include "glide_device.h"
+#include "glide_splash.h"
+#include "glide_texture.h"
+#include "glide_window.h"
+#include "glide_utils.h"
+
 #include "../dxvk/dxvk_adapter.h"
 #include "../dxvk/dxvk_device.h"
 #include "../util/util_singleton.h"
 #include "../wsi/wsi_window.h"
-
-#include "glide_device.h"
-#include "glide_splash.h"
-#include "glide_texture.h"
-#include "glide_utils.h"
 
 #include <algorithm>
 #include <cstring>
@@ -36,7 +37,7 @@ namespace dxvk {
 
     Logger::info(str::format("Board: ", m_boardConfiguration.name));
     for (int idx = 0; idx < m_boardConfiguration.tmuCount; idx++) {
-      const FxU32 size = m_boardConfiguration.tmuRam * (m_glideOptions.doubleSizedTMU ? 2 : 1);
+      const FxU32 size = m_glideOptions.TMUMBOverride != 0 ? m_glideOptions.TMUMBOverride : m_boardConfiguration.tmuRam;
       m_tmu[idx] = new GlideTMU(this, static_cast<GrChipID_t>(idx), size * 1024 * 1024);
       Logger::info(str::format("TMU ", idx, " started with ", size, "MB of RAM"));
     }
@@ -58,6 +59,10 @@ namespace dxvk {
 
     if (m_swapchain != nullptr)
       delete m_swapchain;
+
+    HMONITOR monitor = wsi::getWindowMonitor(m_window);
+    wsi::setWindowMode(monitor, m_window, &m_windowState, m_mode);
+    wsi::restoreWindowState(m_window, &m_windowState, true);
 
     ExecuteFlush();
     SynchronizeCsThread(DxvkCsThread::SynchronizeAll);
@@ -96,10 +101,26 @@ namespace dxvk {
 
     DEBUGLOG(str::format("Requested resolution: ", m_screen.width, "x", m_screen.height, "@", m_screen.refreshRate, ", origin: ", originLocation));
 
-    if (unlikely(!hWnd)) {
+    m_window = hWnd;
+    DWORD cpid = GetCurrentProcessId();
+    DWORD wpid = 0;
+    if (unlikely(m_window == nullptr || !GetWindowThreadProcessId(m_window, &wpid) || cpid != wpid)) {
       Logger::warn("No window passed, trying to found one...");
-      hWnd = GetActiveWindow();
-      if (unlikely(!hWnd)) {
+      m_window = GetActiveWindow();
+    }
+
+    if (unlikely(m_window == nullptr || !GetWindowThreadProcessId(m_window, &wpid) || cpid != wpid)) {
+      m_window = GetForegroundWindow();
+
+    if (unlikely(m_window == nullptr || !GetWindowThreadProcessId(m_window, &wpid) || cpid != wpid)) {
+      EnumWindowsData data;
+      data.pid = cpid;
+      EnumWindows(EnumWindowsCallback, reinterpret_cast<LPARAM>(&data));
+      if (data.HWNDs.size() > 0)
+        m_window = data.HWNDs[0];
+    }
+
+    if (unlikely(m_window == nullptr || !GetWindowThreadProcessId(m_window, &wpid) || cpid != wpid)) {
         Logger::warn("No window found, trying to create one...");
         HINSTANCE hInstance = GetModuleHandle(NULL);
         const char className[] = "GXVK";
@@ -110,13 +131,25 @@ namespace dxvk {
         wc.hCursor       = LoadCursor(NULL, IDC_ARROW);
         RegisterClassA(&wc);
 
-        hWnd = CreateWindowExA(WS_EX_APPWINDOW, className, "GXVK", WS_POPUP | WS_VISIBLE, 0, 0, 640, 480, nullptr, nullptr, nullptr, nullptr);
-        if (!hWnd) {
+        m_window = CreateWindowExA(WS_EX_APPWINDOW, className, "GXVK", WS_POPUP | WS_VISIBLE, 0, 0, 640, 480, nullptr, nullptr, nullptr, nullptr);
+        if (!m_window) {
           Logger::err("Failed to create a window :-(");
           exit(0);
         }
-        SetFocus(hWnd);
+        SetFocus(m_window);
       }
+    }
+
+    HMONITOR monitor = wsi::getWindowMonitor(m_window);
+    if (monitor == nullptr) {
+      Logger::err("Window resides on unknown monitor");
+      return FXFALSE;
+    }
+
+    if (likely(!m_windowOpened)) {
+      wsi::getCurrentDisplayMode(monitor, &m_mode);
+      wsi::saveWindowState(m_window, &m_windowState, true);
+      m_windowOpened = FXTRUE;
     }
 
     if (m_api != GLIDEAPI::API_GLIDE_3X) {
@@ -143,13 +176,6 @@ namespace dxvk {
 
     m_colorBuffers = nColBuffers;
     m_auxBuffers = nAuxBuffers;
-    m_window = hWnd;
-
-    HMONITOR monitor = wsi::getWindowMonitor(hWnd);
-    if (monitor == nullptr) {
-      Logger::err("Window resides on unknown monitor");
-      return FXFALSE;
-    }
 
     SwapChainDesc desc;
     desc.BackBufferWidth = m_screen.width;
@@ -206,9 +232,9 @@ namespace dxvk {
     CreateConstantBuffers();
 
     if (m_swapchain == nullptr)
-      m_swapchain = new GlideSwapChain(hWnd, this, std::move(desc));
+      m_swapchain = new GlideSwapChain(m_window, this, std::move(desc));
     else {
-      m_swapchain->Reset(hWnd, &desc);
+      m_swapchain->Reset(m_window, &desc);
 
       ExecuteFlush();
       SynchronizeCsThread(DxvkCsThread::SynchronizeAll);
@@ -254,17 +280,16 @@ namespace dxvk {
     GlideDeviceLock lock = LockDevice();
 
     if (m_swapchain != nullptr) {
-      if (!m_glideOptions.deviceReset) {
-        SwapChainDesc desc;
-        desc.BackBufferWidth = m_screen.width;
-        desc.BackBufferHeight = m_screen.height;
-        desc.RefreshRate = m_screen.refreshRate;
-        desc.BufferCount = m_colorBuffers;
-        desc.AuxBufferCount = m_auxBuffers;
-        m_swapchain->Reset(m_window, &desc);
-      } else {
+      if (unlikely(!m_glideOptions.deviceReset)) {
         delete m_swapchain;
         m_swapchain = nullptr;
+      } else if (likely(m_windowOpened)) {
+        HMONITOR monitor = wsi::getWindowMonitor(m_window);
+        wsi::leaveFullscreenMode(m_window, &m_windowState);
+        wsi::setWindowMode(monitor, m_window, &m_windowState, m_mode);
+        wsi::restoreWindowState(m_window, &m_windowState, true);
+        wsi::enterFullscreenMode(monitor, m_window, &m_windowState, true);
+        m_windowOpened = FXFALSE;
       }
     }
   }
@@ -2076,15 +2101,15 @@ namespace dxvk {
     }
   }
 
-  void GlideDevice::SetTexDetailControl(GrChipID_t tmu, FxI32 lod_bias, FxU8 detail_scale, FxFloat detail_max) {
+  void GlideDevice::SetTexDetailControl(GrChipID_t tmu, FxI32 lodBias, FxU8 detailScale, FxFloat detailMax) {
     if (unlikely(tmu >= std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES)))
       return;
 
     auto& TMUState = m_state.tmu[tmu];
-    if (TMUState.texDetailControl.lodBias != lod_bias || TMUState.texDetailControl.scale != detail_scale || TMUState.texDetailControl.max != detail_max) {
-      TMUState.texDetailControl.lodBias = lod_bias;
-      TMUState.texDetailControl.scale = detail_scale;
-      TMUState.texDetailControl.max = detail_max;
+    if (TMUState.texDetailControl.lodBias != lodBias || TMUState.texDetailControl.scale != detailScale || TMUState.texDetailControl.max != detailMax) {
+      TMUState.texDetailControl.lodBias = lodBias;
+      TMUState.texDetailControl.scale = detailScale;
+      TMUState.texDetailControl.max = detailMax;
 
       // TODO
       static bool sWarnShown = false;
@@ -2095,14 +2120,14 @@ namespace dxvk {
     }
   }
 
-  void GlideDevice::SetTexFilterMode(GrChipID_t tmu, GrTextureFilterMode_t minfilter_mode, GrTextureFilterMode_t magfilter_mode) {
+  void GlideDevice::SetTexFilterMode(GrChipID_t tmu, GrTextureFilterMode_t filterMin, GrTextureFilterMode_t filterMag) {
     if (unlikely(tmu >= std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES)))
       return;
 
     auto& TMUState = m_state.tmu[tmu];
-    if (TMUState.texFilterMode.min != minfilter_mode || TMUState.texFilterMode.mag != magfilter_mode) {
-      TMUState.texFilterMode.min = minfilter_mode;
-      TMUState.texFilterMode.mag = magfilter_mode;
+    if (TMUState.texFilterMode.min != filterMin || TMUState.texFilterMode.mag != filterMag) {
+      TMUState.texFilterMode.min = filterMin;
+      TMUState.texFilterMode.mag = filterMag;
       m_dirty.set(GlideDeviceDirtyFlag::PushDataFfps);
     }
   }
@@ -2422,6 +2447,186 @@ namespace dxvk {
 
       fogTable[i] = (GrFog_t)r;
     }
+  }
+
+  GlideTMU::TMUAddress GlideDevice::TMUFindFreeBlock(GrChipID_t tmu, FxU32 size) {
+    GlideTMU::TMUAddress offset = 0;
+    for (const auto& id : m_textures) {
+      const auto& t = id.second;
+      FxU32 nextOffset = t.info.baseAddress + t.size;
+      if (offset < nextOffset)
+        offset = nextOffset;
+    }
+
+    if (offset + size <= m_tmu[tmu]->GetMaximumAddress()) {
+      return offset;
+    }
+
+    return GLIDE_NO_TEXTURE;
+  }
+
+  GrMipMapId_t GlideDevice::UtilTexAllocateMemory(GrChipID_t tmu, MipMapLevelMask_t evenOdd, FxI32 width, FxI32 height, GrTextureFormat_t format, GrMipMapMode_t mipMapMode, glide2x::GrLOD_t smallLod, glide2x::GrLOD_t largeLod, glide2x::GrAspectRatio_t aspectRatio, GrTextureClampMode_t clampModeS, GrTextureClampMode_t clampModeT, GrTextureFilterMode_t filterMin, GrTextureFilterMode_t filterMag, FxFloat lodBias, FxBool trilinear) {
+    if (unlikely(tmu > std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES)))
+      return GR_NULL_MIPMAP_HANDLE;
+
+    FxU32 size = UtilGetTextureSize(UtilLodToLOG2(smallLod), UtilLodToLOG2(largeLod), UtilAspectRatioToLOG2(aspectRatio), format, evenOdd);
+    GlideTMU::TMUAddress address = TMUFindFreeBlock(tmu, size);
+    if (address != GLIDE_NO_TEXTURE) {
+      MipMapInfo t;
+      t.size = size;
+      t.info.sst = 1;
+      t.info.tmu = tmu;
+      t.info.baseAddress = address;
+      t.info.format = format;
+      t.info.smallLod = smallLod;
+      t.info.largeLod = largeLod;
+      t.info.aspectRatio = aspectRatio;
+      t.info.evenOdd = evenOdd;
+      t.info.width = width;
+      t.info.height = height;
+      t.info.mipMapMode = mipMapMode;
+      t.info.clampModeS = clampModeS;
+      t.info.clampModeT = clampModeT;
+      t.info.filterMin = filterMin;
+      t.info.filterMag = filterMag;
+      t.info.lodBias = lodBias;
+      t.info.trilinear = trilinear;
+      t.info.registerLOD = 0;
+      t.info.registerTextureMode = 0;
+      m_textures[++m_lastTextureID] = std::move(t);
+      Logger::debug(str::format("Texture ", m_lastTextureID, " allocated on TMU ", tmu , " at ", address, " with size ", size));
+      return m_lastTextureID;
+    }
+
+    return GR_NULL_MIPMAP_HANDLE;
+  }
+
+  FxBool GlideDevice::UtilTexChangeAttributes(GrMipMapId_t mmid, FxI32 width, FxI32 height, GrTextureFormat_t format, GrMipMapMode_t mipMapMode, glide2x::GrLOD_t smallLod, glide2x::GrLOD_t largeLod, glide2x::GrAspectRatio_t aspectRatio, GrTextureClampMode_t clampModeS, GrTextureClampMode_t clampModeT, GrTextureFilterMode_t filterMin, GrTextureFilterMode_t filterMag) {
+    const auto r = m_textures.find(mmid);
+    if (unlikely(r == m_textures.end()))
+      return FXFALSE;
+
+    auto& t = r->second;
+    FxU32 size = UtilGetTextureSize(UtilLodToLOG2(smallLod), UtilLodToLOG2(largeLod), UtilAspectRatioToLOG2(aspectRatio), format, t.info.evenOdd);
+    if (unlikely(size > t.size))
+      return FXFALSE;
+
+    t.size = size;
+    t.info.width = width;
+    t.info.height = height;
+    t.info.format = format;
+    t.info.smallLod = smallLod;
+    t.info.largeLod = largeLod;
+    t.info.aspectRatio = aspectRatio;
+    t.info.mipMapMode = mipMapMode;
+    t.info.mipMapMode = mipMapMode;
+    t.info.clampModeS = clampModeS;
+    t.info.clampModeT = clampModeT;
+    t.info.filterMin = filterMin;
+    t.info.filterMag = filterMag;
+    return FXTRUE;
+  }
+
+  void GlideDevice::UtilTexDownloadMipMap(GrMipMapId_t mmid, const void *src, const GuNccTable *table) {
+    const auto r = m_textures.find(mmid);
+    if (unlikely(r == m_textures.end()))
+      return;
+
+    auto& t = r->second;
+    GlideTMU::TMUMetadata m;
+    m.startAddress = t.info.baseAddress;
+    m.smallLodLog2 = UtilLodToLOG2(t.info.smallLod);
+    m.largeLodLog2 = UtilLodToLOG2(t.info.largeLod);
+    m.aspectRatioLog2 = UtilAspectRatioToLOG2(t.info.aspectRatio);
+    m.format = t.info.format;
+    m.evenOdd = t.info.evenOdd;
+    m.data = static_cast<const uint8_t*>(src);
+    if (unlikely(table != nullptr))
+      memcpy(&t.info.nccTable, table, sizeof(GuNccTable));
+
+    const auto& TMU = m_tmu[t.info.tmu];
+    TMU->InsertTextures(std::move(m));
+  }
+
+  void GlideDevice::UtilTexDownloadMipMapLevel(GrMipMapId_t mmid, glide2x::GrLOD_t thisLod, const void ** src) {
+    const auto r = m_textures.find(mmid);
+    if (unlikely(r == m_textures.end()))
+      return;
+
+    auto& t = r->second;
+    GlideTMU::TMUMetadata m;
+    m.startAddress = t.info.baseAddress;
+    m.smallLodLog2 = UtilLodToLOG2(thisLod);
+    m.largeLodLog2 = UtilLodToLOG2(t.info.largeLod);
+    m.aspectRatioLog2 = UtilAspectRatioToLOG2(t.info.aspectRatio);
+    m.format = t.info.format;
+    m.evenOdd = t.info.evenOdd;
+    m.data = static_cast<const uint8_t*>(*src);
+
+    const auto& TMU = m_tmu[t.info.tmu];
+    TMU->InsertTextureLevel(std::move(m));
+  }
+
+  GrMipMapId_t GlideDevice::UtilTexGetCurrentMipMap(GrChipID_t tmu) {
+    if (unlikely(tmu > std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES)))
+      return GR_NULL_MIPMAP_HANDLE;
+
+    return m_currentTextureIDs[tmu];
+  }
+
+  glide2x::GrMipMapInfo* GlideDevice::UtilTexGetMipMapInfo(GrMipMapId_t mmid) {
+    const auto r = m_textures.find(mmid);
+    if (unlikely(r == m_textures.end()))
+      return nullptr;
+
+    return &r->second.info;
+  }
+
+  FxU32 GlideDevice::UtilTexMemQueryAvail(GrChipID_t tmu) {
+    if (unlikely(tmu > std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES)))
+      return 0;
+
+    FxU32 allocated = 0;
+    for (const auto& texture : m_textures) {
+      if (unlikely(texture.second.info.tmu != tmu))
+        continue;
+
+      allocated += texture.second.size;
+    }
+
+    return m_tmu[tmu]->GetMaximumAddress() - allocated;
+  }
+
+  void GlideDevice::UtilTexMemReset() {
+    m_lastTextureID = 0;
+    m_textures.clear();
+  }
+
+  void GlideDevice::UtilTexSource(GrMipMapId_t id) {
+    const auto r = m_textures.find(id);
+    if (unlikely(r == m_textures.end()))
+      return;
+
+    auto& t = r->second;
+    SetTexSource(t.info.tmu, t.info.baseAddress, t.info.evenOdd, UtilLodToLOG2(t.info.smallLod), UtilLodToLOG2(t.info.largeLod), UtilAspectRatioToLOG2(t.info.aspectRatio), t.info.format);
+    SetTexClampMode(t.info.tmu, t.info.clampModeS, t.info.clampModeT);
+    SetTexFilterMode(t.info.tmu, t.info.filterMin, t.info.filterMag);
+    SetTexLodBiasValue(t.info.tmu, t.info.lodBias);
+    SetTexMipMapMode(t.info.tmu, t.info.mipMapMode, t.info.trilinear);
+
+    if (unlikely(m_glideOptions.perTMUTables)) {
+      const auto& TMU = m_tmu[t.info.tmu];
+      TMU->SelectNCCTable(GR_NCCTABLE_NCC0);
+      TMU->SetTable(GR_TEXTABLE_NCC0, &t.info.nccTable);
+    } else {
+      for (FxI32 i = 0; i < std::min(m_boardConfiguration.tmuCount, GLIDE_MAX_TEXTURESTAGES); i++) {
+        const auto& TMU = m_tmu[i];
+        TMU->SelectNCCTable(GR_NCCTABLE_NCC0);
+        TMU->SetTable(GR_TEXTABLE_NCC0, &t.info.nccTable);
+      }
+    }
+
+    m_currentTextureIDs[t.info.tmu] = id;
   }
 
 }

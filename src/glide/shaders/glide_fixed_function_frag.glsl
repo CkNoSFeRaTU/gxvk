@@ -357,18 +357,8 @@ vec4 combinerTMU(uint stage, vec4 localInput, vec4 otherInput) {
 
 void chromaTestColor(uint colorFormat, vec3 color) {
   if (chromaMode == GR_CHROMAKEY_ENABLE) {
-    vec4 lkey = decodeColor(colorFormat, ffps.chromaKeyLow);
-    vec4 hkey = decodeColor(colorFormat, ffps.chromaKeyHigh);
-    if (getColorMask() && all(greaterThanEqual(color, lkey.rgb)) && all(lessThanEqual(color, hkey.rgb)))
-      demote;
-  }
-}
-
-void chromaTestAlpha(uint colorFormat, float alpha) {
-  if (chromaMode == GR_CHROMAKEY_ENABLE) {
-    vec4 lkey = decodeColor(colorFormat, ffps.chromaKeyLow);
-    vec4 hkey = decodeColor(colorFormat, ffps.chromaKeyHigh);
-    if (getAlphaMask() && alpha >= lkey.a && alpha <= hkey.a)
+    vec3 key = decodeColor(colorFormat, ffps.chromaKeyLow).rgb;
+    if (all(lessThan(abs(color - key), vec3(0.5 / 255))))
       demote;
   }
 }
@@ -394,8 +384,6 @@ vec4 combinerPixelFx(uint colorFormat, vec4 vertColor, vec4 texColor) {
     otherAlpha = texColor.a;
   else if (curAlphaOther == GR_COMBINE_OTHER_CONSTANT)
     otherAlpha = constantColor.a;
-
-  chromaTestAlpha(colorFormat, otherAlpha);
 
   float factorAlpha = opAlphaFactor(getAlphaFactor(), localAlpha, otherAlpha, texColor);
   result.a = clamp(opAlphaFunction(getAlphaFunction(), factorAlpha, localAlpha, otherAlpha), 0.0, 1.0);
@@ -517,14 +505,17 @@ float depthFP(uint depthMode, float oow, float ooz) {
   float depth = 0.0;
   if (depthMode == GR_DEPTHBUFFER_WBUFFER || depthMode == GR_DEPTHBUFFER_WBUFFER_COMPARE_TO_BIAS) {
     float W = global.coordinateSpace == GR_CLIP_COORDS ? in_W : 1.0 / in_W;
-    W = mod(W - 1.0, 65536.0) + 1.0;
-    W = clamp(W, 1.0, 65528.0);
-    float exponent = trunc(log2(W));
+    if (W < 1.0 / 65535.0)
+      depth = 65535.0;
+    else {
+      W = clamp(W, 1.0, 65528.0);
+      float exponent = trunc(log2(W));
 
-    float base = exp2(exponent);
-    float mantissa = (W / base) * 4096.0 - 4096.0;
+      float base = exp2(exponent);
+      float mantissa = (W / base) * 4096.0 - 4096.0;
 
-    depth = clamp((uint(exponent) << 12) | uint(mantissa), 0, 65535);
+      depth = clamp((uint(exponent) << 12) | uint(mantissa), 0, 65535);
+    }
   } else if (depthMode == GR_DEPTHBUFFER_ZBUFFER || depthMode == GR_DEPTHBUFFER_ZBUFFER_COMPARE_TO_BIAS) {
     depth = clamp(ooz, 0.0, 65535.0);
   }

@@ -5826,9 +5826,9 @@ namespace dxvk {
 
   static void downloadTexture(GlideDevice* device, Texture *texture, glide3x::Gu3dfInfo *info) {
     texture->info.data = info->data;
-    texture->info.smallLodLog2 = info->header.small_lod;
-    texture->info.largeLodLog2 = info->header.large_lod;
-    texture->info.aspectRatioLog2 = info->header.aspect_ratio;
+    texture->info.smallLodLog2 = info->header.smallLod;
+    texture->info.largeLodLog2 = info->header.largeLod;
+    texture->info.aspectRatioLog2 = info->header.aspectRatio;
     texture->info.format = info->header.format;
 
     texture->addr = nextFreeBase;
@@ -6266,7 +6266,7 @@ namespace dxvk {
     device->SetTexFilterMode(GR_TMU0, GR_TEXTUREFILTER_BILINEAR, GR_TEXTUREFILTER_BILINEAR);
     device->SetDepthBufferFunction(GR_CMP_LEQUAL);
     device->SetCullMode(GR_CULL_NEGATIVE);
-    /* grClipWindow((int)x, (int)y, (int)(x+w), (int)(y+h)); */
+    // device->SetClipWindow((int)x, (int)y, (int)(x+w), (int)(y+h));
     device->SetFogColor(0x0);
 
     fadeInFrames  = (int)(((float)totalNumberOfFrames) * FADEIN_END_PERCENT);
@@ -6276,7 +6276,8 @@ namespace dxvk {
       for(frame = 1; frame < totalNumberOfFrames; frame++) {
         if(frame < fadeInFrames)  {
           FxU8 fval = (((FxU8)0xFF) - ((FxU8)(255.0f * (FxFloat)(frame + 1) / (FxFloat)fadeInFrames)));
-          for(FxU32 i = 0; i < FOG_TABLE_ENTRIES_COUNT; i++) fogTable[i] = fval;
+          for(FxU32 i = 0; i < FOG_TABLE_ENTRIES_COUNT; i++)
+            fogTable[i] = fval;
           device->SetFogMode(glide3x::GR_FOG_WITH_TABLE_ON_W);
           device->SetFogTable(fogTable);
           doFog = FXTRUE;

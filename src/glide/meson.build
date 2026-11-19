@@ -18,6 +18,7 @@ glide_common = [
   'glide_texture.cpp',
   'glide_tmu.cpp',
   'glide_vertex_layout.cpp',
+  'glide_window.cpp',
   'glide_utils.cpp',
 ]
 

@@ -112,9 +112,9 @@ namespace glide2x {
   };
 
   typedef struct {
-    float  sow;    /* s texture ordinate (s over w) */
-    float  tow;    /* t texture ordinate (t over w) */
-    float  oow;    /* 1/w (used mipmapping - really 0xfff/w) */
+    float sow;    /* s texture ordinate (s over w) */
+    float tow;    /* t texture ordinate (t over w) */
+    float oow;    /* 1/w (used mipmapping - really 0xfff/w) */
   } GrTmuVertex;
 
   typedef struct {
@@ -127,17 +127,17 @@ namespace glide2x {
   } GrVertex;
 
   typedef struct {
-    FxU32               width, height;
-    int                 small_lod, large_lod;
-    GrAspectRatio_t     aspect_ratio;
-    GrTextureFormat_t   format;
+    FxU32             width, height;
+    int               smallLod, largeLod;
+    GrAspectRatio_t   aspectRatio;
+    GrTextureFormat_t format;
   } Gu3dfHeader;
 
   typedef struct {
     Gu3dfHeader  header;
     GuTexTable   table;
-    void        *data;
-    FxU32        mem_required;    /* memory required for mip map in bytes. */
+    void*        data;
+    FxU32        requiredMemory; /* memory required for mip map in bytes. */
   } Gu3dfInfo;
 
   typedef struct {
@@ -145,32 +145,29 @@ namespace glide2x {
     GrLOD_t           largeLod;
     GrAspectRatio_t   aspectRatio;
     GrTextureFormat_t format;
-    void              *data;
+    void*             data;
   } GrTexInfo;
 
   typedef struct {
-    int           sst;                    /* SST where this texture map was stored  */
-    FxBool        valid;                  /* set when this table entry is allocated*/
-    int           width, height;
-    GrAspectRatio_t aspect_ratio;         /* aspect ratio of the mip map.  */
-    void          *data;                  /* actual texture data  */
-
-    GrTextureFormat_t  format;                    /* format of the texture table */
-    GrMipMapMode_t     mipmap_mode;               /* mip map mode for this texture */
-    GrTextureFilterMode_t   magfilter_mode;       /* filtering to be used when magnified */
-    GrTextureFilterMode_t   minfilter_mode;       /* filtering to be used with minified  */
-    GrTextureClampMode_t    s_clamp_mode;         /* how this texture should be clamped in s */
-    GrTextureClampMode_t    t_clamp_mode;         /* how this texture should be clamped in t */
-    FxU32         tLOD;                   /* Register value for tLOD register */
-    FxU32         tTextureMode;           /* Register value for tTextureMode register
-                                            not including non-texture specific bits */
-    FxU32         lod_bias;               /* LOD bias of the mip map in preshifted 4.2*/
-    GrLOD_t       lod_min, lod_max;       /* largest and smallest levels of detail  */
-    int           tmu;                    /* tmu on which this texture resides */
-    FxU32         odd_even_mask;          /* mask specifying levels on this tmu  */
-    FxU32         tmu_base_address;       /* base addr (in TMU mem) of this texture */
-    FxBool        trilinear;              /* should we blend by lod? */
-
-    GuNccTable    ncc_table;              /* NCC compression table (optional) */
+    FxI32                 sst;                 /* SST where this texture map was stored  */
+    FxBool                valid;               /* set when this table entry is allocated*/
+    FxI32                 width, height;
+    GrAspectRatio_t       aspectRatio;         /* aspect ratio of the mip map.  */
+    void*                 data;                /* actual texture data  */
+    GrTextureFormat_t     format;              /* format of the texture table */
+    GrMipMapMode_t        mipMapMode;          /* mip map mode for this texture */
+    GrTextureFilterMode_t filterMag;           /* filtering to be used when magnified */
+    GrTextureFilterMode_t filterMin;           /* filtering to be used with minified  */
+    GrTextureClampMode_t  clampModeS;          /* how this texture should be clamped in s */
+    GrTextureClampMode_t  clampModeT;          /* how this texture should be clamped in t */
+    FxU32                 registerLOD;         /* Register value for tLOD register */
+    FxU32                 registerTextureMode; /* Register value for tTextureMode register not including non-texture specific bits */
+    FxU32                 lodBias;             /* LOD bias of the mip map in preshifted 4.2*/
+    GrLOD_t               smallLod, largeLod;  /* largest and smallest levels of detail  */
+    GrChipID_t            tmu;                 /* tmu on which this texture resides */
+    MipMapLevelMask_t     evenOdd;             /* mask specifying levels on this tmu  */
+    FxU32                 baseAddress;         /* base addr (in TMU mem) of this texture */
+    FxBool                trilinear;           /* should we blend by lod? */
+    GuNccTable            nccTable;            /* NCC compression table (optional) */
   } GrMipMapInfo;
 }

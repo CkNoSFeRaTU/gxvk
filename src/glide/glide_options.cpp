@@ -8,9 +8,7 @@ namespace dxvk {
     this->autoGenMipMaps = config.getOption<bool>("glide.autoGenMipMaps", false);
 
     std::string card = Config::toLower(config.getOption<std::string>("glide.card", "auto"));
-    if (card == "auto") {
-      this->card = GlideCard::CARD_AUTO;
-    } else if (card == "voodoo" || card == "sst-1") {
+    if (card == "voodoo" || card == "sst-1") {
       this->card = GlideCard::CARD_VOODOO;
     } else if (card == "rush" || card == "sst-96") {
       this->card = GlideCard::CARD_RUSH;
@@ -24,24 +22,25 @@ namespace dxvk {
       this->card = GlideCard::CARD_VOODOO4;
     } else if (card == "voodoo5") {
       this->card = GlideCard::CARD_VOODOO5;
+    } else {
+      this->card = GlideCard::CARD_AUTO;
     }
 
     this->deviceLocalConstantBuffers = config.getOption<Tristate>("glide.deviceLocalConstantBuffers", Tristate::Auto);
     this->deviceReset = config.getOption<bool>("glide.deviceReset", true);
-    this->doubleSizedTMU = config.getOption<bool>("glide.doubleSizedTMU", false);
     this->hackNoBlend = config.getOption<bool>("glide.hackNoBlend", false);
     this->hackNoClears = config.getOption<bool>("glide.hackNoClears", false);
     this->hackNoDepth = config.getOption<bool>("glide.hackNoDepth", false);
     this->hackNoLFB = config.getOption<bool>("glide.hackNoLFB", false);
     this->hackNoMipMaps = config.getOption<bool>("glide.hackNoMipMaps", false);
 
-    std::string lfbMode = Config::toLower(config.getOption<std::string>("glide.lfbMode", "auto"));
-    if (lfbMode == "legacy") {
-      this->lfbMode = GlideLFBMode::LFB_LEGACY;
-    } else if (lfbMode == "uma") {
-      this->lfbMode = GlideLFBMode::LFB_UMA;
+    std::string LFBMode = Config::toLower(config.getOption<std::string>("glide.LFBMode", "auto"));
+    if (LFBMode == "legacy") {
+      this->LFBMode = GlideLFBMode::LFB_LEGACY;
+    } else if (LFBMode == "uma") {
+      this->LFBMode = GlideLFBMode::LFB_UMA;
     } else {
-      this->lfbMode = GlideLFBMode::LFB_AUTO;
+      this->LFBMode = GlideLFBMode::LFB_AUTO;
     }
 
     this->maxFrameRate = config.getOption<int32_t>("dxvk.maxFrameRate",
@@ -49,7 +48,8 @@ namespace dxvk {
     this->multithread = config.getOption<bool>("glide.multithread", false);
     this->noSplash = config.getOption<bool>("glide.noSplash", false);
     this->presentInterval = config.getOption<int32_t>("glide.presentInterval", -1);
-    this->perTMUTables = config.getOption<bool>("glide.perTMUTables", true);
+    this->perTMUTables = config.getOption<bool>("glide.perTMUTables", false);
+    this->TMUMBOverride = config.getOption<int32_t>("glide.TMUMBOverride", 0);
     this->useDepthFormat = config.getOption<int32_t>("glide.useDepthFormat", 0);
     this->useMonitorResolution = config.getOption<bool>("glide.useMonitorResolution", false);
   }

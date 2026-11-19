@@ -35,18 +35,18 @@ namespace dxvk {
     /// Use device local memory for constant buffers.
     Tristate          deviceLocalConstantBuffers;
     bool              deviceReset;
-    bool              doubleSizedTMU;
     bool              hackNoBlend;
     bool              hackNoClears;
     bool              hackNoDepth;
     bool              hackNoLFB;
     bool              hackNoMipMaps;
-    GlideLFBMode      lfbMode;
+    GlideLFBMode      LFBMode;
     int32_t           maxFrameRate;
     bool              multithread;
     bool              noSplash;
     bool              perTMUTables;
     int32_t           presentInterval;
+    int32_t           TMUMBOverride;
     int32_t           useDepthFormat;
     bool              useMonitorResolution;
   };

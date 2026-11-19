@@ -1,6 +1,7 @@
 #include "glide_device.h"
 #include "glide_swapchain.h"
 #include "glide_texture.h"
+#include "glide_window.h"
 
 #include "../dxvk/dxvk_latency_builtin.h"
 #include "../dxvk/hud/dxvk_hud.h"
@@ -10,28 +11,6 @@
 #include <algorithm>
 
 namespace dxvk {
-
-  static Rc<DxvkSwapchainBlitter> i_blitter = nullptr;
-  static Rc<hud::Hud> i_hud = nullptr;
-  static WNDPROC wndProc = nullptr;
-  LRESULT CALLBACK HookedWindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam) {
-    if (unlikely(i_blitter != nullptr && (GetKeyState(VK_SHIFT) & 0x8000))) {
-      if (unlikely(i_hud && msg == WM_SYSKEYDOWN && wParam == VK_F10))
-        i_hud->GetOptions()->opacity = std::max(i_hud->GetOptions()->opacity - 0.1f, 0.0f);
-      else if (unlikely(i_hud && msg == WM_KEYDOWN && wParam == VK_F11))
-        i_hud->GetOptions()->opacity = std::min(i_hud->GetOptions()->opacity + 0.1f, 1.0f);
-      else if (unlikely(i_blitter && msg == WM_KEYDOWN && wParam == VK_F12)) {
-        if (unlikely(i_hud && i_hud->GetOptions()->opacity == 0.0f))
-          i_hud->GetOptions()->opacity = 0.1f;
-
-        i_blitter->hudStateToggle();
-      }
-
-      return 0;
-    }
-
-    return CallWindowProcW(wndProc, window, msg, wParam, lParam);
-  }
 
   GlideSwapChain::GlideSwapChain(HWND window, GlideDevice *parent, SwapChainDesc desc)
   : m_parent(parent)
@@ -51,9 +30,7 @@ namespace dxvk {
 
     ChangeDisplayMode();
 
-    i_blitter = m_blitter;
-    if (likely(m_window && wndProc == nullptr))
-      wndProc = reinterpret_cast<WNDPROC>(SetWindowLongPtrW(window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(HookedWindowProc)));
+    SetWindowHook(m_window, m_blitter, m_hud);
   };
 
   GlideSwapChain::~GlideSwapChain() {
@@ -62,12 +39,7 @@ namespace dxvk {
     if (this_thread::isInModuleDetachment())
       return;
 
-    if (likely(m_window && wndProc != nullptr)) {
-      SetWindowLongPtrW(m_window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(wndProc));
-      wndProc = nullptr;
-    }
-    i_blitter = nullptr;
-    i_hud = nullptr;
+    SetWindowHook(m_window, nullptr, nullptr);
 
     m_presenter->destroyResources();
 
@@ -139,22 +111,20 @@ namespace dxvk {
   }
 
   void GlideSwapChain::ChangeDisplayMode() {
-    wsi::WsiMode mode;
+    m_windowMode.width = m_desc.ScreenWidth;
+    m_windowMode.height = m_desc.ScreenHeight;
+    m_windowMode.bitsPerPixel = 32;
+    m_windowMode.refreshRate = wsi::WsiRational{m_desc.RefreshRate, 1};
+    m_windowMode.interlaced = false;
 
-    mode.width = m_desc.ScreenWidth;
-    mode.height = m_desc.ScreenHeight;
-    mode.bitsPerPixel = 32;
-    mode.refreshRate = wsi::WsiRational{m_desc.RefreshRate, 1};
-    mode.interlaced = false;
-
-    wsi::setWindowMode(m_monitor, m_window, &m_windowState, mode);
+    wsi::setWindowMode(m_monitor, m_window, &m_windowState, m_windowMode);
     wsi::enterFullscreenMode(m_monitor, m_window, &m_windowState, true);
 
     m_displayRefreshRate = 0.0;
 
-    if (wsi::getCurrentDisplayMode(m_monitor, &mode)) {
-      m_displayRefreshRate = double(mode.refreshRate.numerator)
-                           / double(mode.refreshRate.denominator);
+    if (wsi::getCurrentDisplayMode(m_monitor, &m_windowMode)) {
+      m_displayRefreshRate = double(m_windowMode.refreshRate.numerator)
+                           / double(m_windowMode.refreshRate.denominator);
     }
 
     m_displayRefreshRateDirty = false;
@@ -345,19 +315,18 @@ namespace dxvk {
   }
 
   void GlideSwapChain::CreateBlitter() {
-    Rc<hud::Hud> hud = hud::Hud::createHud(m_device);
+    m_hud = hud::Hud::createHud(m_device);
 
-    if (hud) {
-      if (hud->GetOptions()->scale == 1.0f)
-        hud->GetOptions()->scale = float(m_desc.ScreenHeight) / 768.0f;
-      hud->addItem<hud::HudClientApiItem>("api", 1, m_parent->GetAPIString() + " (" + m_parent->GetBoardConfiguration()->name + ")");
+    if (m_hud) {
+      if (m_hud->GetOptions()->scale == 1.0f)
+        m_hud->GetOptions()->scale = float(m_desc.ScreenHeight) / 768.0f;
+      m_hud->addItem<hud::HudClientApiItem>("api", 1, m_parent->GetAPIString() + " (" + m_parent->GetBoardConfiguration()->name + ")");
 
       if (m_latencyTracker)
-        m_latencyHud = hud->addItem<hud::HudLatencyItem>("latency", 4);
+        m_latencyHud = m_hud->addItem<hud::HudLatencyItem>("latency", 4);
     }
 
-    i_hud = std::move(hud);
-    m_blitter = new DxvkSwapchainBlitter(m_device, i_hud);
+    m_blitter = new DxvkSwapchainBlitter(m_device, m_hud);
   }
 
   void GlideSwapChain::DestroyBackBuffers() {

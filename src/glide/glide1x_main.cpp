@@ -761,13 +761,13 @@ extern "C" {
     glideDevice->SetTexCombineFunction(tmu, fnc);
   }
 
-  DLLEXPORT void __stdcall grTexDetailControl(GrChipID_t tmu, FxI32 lod_bias, FxU8 detail_scale, float detail_max) {
+  DLLEXPORT void __stdcall grTexDetailControl(GrChipID_t tmu, FxI32 lodBias, FxU8 detailScale, float detailMax) {
     DEBUGLOG(">>> grTexDetailControl");
 
     if (unlikely(glideDevice == nullptr))
       return;
 
-    glideDevice->SetTexDetailControl(tmu, lod_bias, detail_scale, detail_max);
+    glideDevice->SetTexDetailControl(tmu, lodBias, detailScale, detailMax);
   }
 
   DLLEXPORT void __stdcall grTexDownloadMipMap(GrChipID_t tmu, FxU32 startAddress, MipMapLevelMask_t evenOdd, glide2x::GrTexInfo *info) {
@@ -842,12 +842,12 @@ extern "C" {
     if (unlikely(glideDevice == nullptr || data == nullptr))
       return;
 
-    if (likely(glideDevice->GetOptions()->perTMUTables)) {
+    if (unlikely(glideDevice->GetOptions()->perTMUTables)) {
       Rc<GlideTMU> TMU = glideDevice->GetTMU(tmu);
       if (likely(TMU != nullptr))
         TMU->SetTable(type, data);
     } else {
-      for (FxI32 i = 0; i < glideDevice->GetBoardConfiguration()->tmuCount; i++) {
+      for (FxI32 i = 0; i < std::min(glideDevice->GetBoardConfiguration()->tmuCount, GLIDE_MAX_TEXTURESTAGES); i++) {
         Rc<GlideTMU> TMU = glideDevice->GetTMU(static_cast<GrChipID_t>(i));
         if (likely(TMU != nullptr))
           TMU->SetTable(type, data);
@@ -861,12 +861,12 @@ extern "C" {
     if (unlikely(glideDevice == nullptr || data == nullptr))
       return;
 
-    if (likely(glideDevice->GetOptions()->perTMUTables)) {
+    if (unlikely(glideDevice->GetOptions()->perTMUTables)) {
       Rc<GlideTMU> TMU = glideDevice->GetTMU(tmu);
       if (likely(TMU != nullptr))
         TMU->SetTable(type, data, start, end);
     } else {
-      for (FxI32 i = 0; i < glideDevice->GetBoardConfiguration()->tmuCount; i++) {
+      for (FxI32 i = 0; i < std::min(glideDevice->GetBoardConfiguration()->tmuCount, GLIDE_MAX_TEXTURESTAGES); i++) {
         Rc<GlideTMU> TMU = glideDevice->GetTMU(static_cast<GrChipID_t>(i));
         if (likely(TMU != nullptr))
           TMU->SetTable(type, data, start, end);
@@ -874,13 +874,13 @@ extern "C" {
     }
   }
 
-  DLLEXPORT void __stdcall grTexFilterMode(GrChipID_t tmu, GrTextureFilterMode_t minfilter_mode, GrTextureFilterMode_t magfilter_mode) {
+  DLLEXPORT void __stdcall grTexFilterMode(GrChipID_t tmu, GrTextureFilterMode_t filterMin, GrTextureFilterMode_t filterMag) {
     DEBUGLOG(">>> grTexFilterMode");
 
     if (unlikely(glideDevice == nullptr))
       return;
 
-    glideDevice->SetTexFilterMode(tmu, minfilter_mode, magfilter_mode);
+    glideDevice->SetTexFilterMode(tmu, filterMin, filterMag);
   }
 
   DLLEXPORT void __stdcall grTexLodBiasValue(GrChipID_t tmu, FxFloat bias) {
@@ -934,12 +934,12 @@ extern "C" {
       return;
 
     const GrNCCTable_t NCCTable = table == GR_TEXTABLE_NCC0 ? GR_NCCTABLE_NCC0 : GR_NCCTABLE_NCC1;
-    if (likely(glideDevice->GetOptions()->perTMUTables)) {
+    if (unlikely(glideDevice->GetOptions()->perTMUTables)) {
       Rc<GlideTMU> TMU = glideDevice->GetTMU(tmu);
       if (likely(TMU != nullptr))
         TMU->SelectNCCTable(NCCTable);
     } else {
-      for (FxI32 i = 0; i < glideDevice->GetBoardConfiguration()->tmuCount; i++) {
+      for (FxI32 i = 0; i < std::min(glideDevice->GetBoardConfiguration()->tmuCount, GLIDE_MAX_TEXTURESTAGES); i++) {
         Rc<GlideTMU> TMU = glideDevice->GetTMU(static_cast<GrChipID_t>(i));
         if (likely(TMU != nullptr))
           TMU->SelectNCCTable(NCCTable);
@@ -1172,14 +1172,22 @@ extern "C" {
     DEBUGLOG("stub: guMovieStop");
   }
 
-  DLLEXPORT GrMipMapId_t __stdcall guTexAllocateMemory(GrChipID_t tmu, FxU8 odd_even_mask, int width, int height, FxI32 fmt, FxI32 mm_mode, FxI32 smallest_lod, FxI32 largest_lod, FxI32 aspect, FxI32 s_clamp_mode, FxI32 t_clamp_mode, FxI32 minfilter_mode, FxI32 magfilter_mode, float lod_bias, FxBool trilinear) {
-    DEBUGLOG("stub: guTexAllocateMemory");
-    return 0;
+  DLLEXPORT GrMipMapId_t __stdcall guTexAllocateMemory(GrChipID_t tmu, MipMapLevelMask_t evenOdd, FxI32 width, FxI32 height, GrTextureFormat_t format, GrMipMapMode_t mipMapMode, glide2x::GrLOD_t smallLod, glide2x::GrLOD_t largeLod, glide2x::GrAspectRatio_t aspectRatio, GrTextureClampMode_t clampModeS, GrTextureClampMode_t clampModeT, GrTextureFilterMode_t filterMin, GrTextureFilterMode_t filterMag, FxFloat lodBias, FxBool trilinear) {
+    DEBUGLOG(">>> guTexAllocateMemory");
+
+    if (unlikely(glideDevice == nullptr))
+      return GR_NULL_MIPMAP_HANDLE;
+
+    return glideDevice->UtilTexAllocateMemory(tmu, evenOdd, width, height, format, mipMapMode, smallLod, largeLod, aspectRatio, clampModeS, clampModeT, filterMin, filterMag, lodBias, trilinear);
   }
 
-  DLLEXPORT FxBool __stdcall guTexChangeAttributes(GrMipMapId_t mmid, int width, int height, FxI32 fmt, FxI32 mm_mode, FxI32 smallest_lod, FxI32 largest_lod, FxI32 aspect, FxI32 s_clamp_mode, FxI32 t_clamp_mode, FxI32 minFilterMode, FxI32 magFilterMode) {
-    DEBUGLOG("stub: guTexChangeAttributes");
-    return FXFALSE;
+  DLLEXPORT FxBool __stdcall guTexChangeAttributes(GrMipMapId_t mmid, FxI32 width, FxI32 height, GrTextureFormat_t format, GrMipMapMode_t mipMapMode, glide2x::GrLOD_t smallLod, glide2x::GrLOD_t largeLod, glide2x::GrAspectRatio_t aspectRatio, GrTextureClampMode_t clampModeS, GrTextureClampMode_t clampModeT, GrTextureFilterMode_t filterMin, GrTextureFilterMode_t filterMag) {
+    DEBUGLOG(">>> guTexChangeAttributes");
+
+    if (unlikely(glideDevice == nullptr))
+      return FXFALSE;
+
+    return glideDevice->UtilTexChangeAttributes(mmid, width, height, format, mipMapMode, smallLod, largeLod, aspectRatio, clampModeS, clampModeT, filterMin, filterMag);
   }
 
   DLLEXPORT void __stdcall guTexCombineFunction(GrChipID_t tmu, GrTextureCombineFnc_t fnc) {
@@ -1197,41 +1205,66 @@ extern "C" {
   }
 
   DLLEXPORT void __stdcall guTexDownloadMipMap(GrMipMapId_t mmid, const void *src, const GuNccTable *table) {
-    DEBUGLOG("stub: guTexDownloadMipMap");
+    DEBUGLOG(">>> guTexDownloadMipMap");
+
+    if (unlikely(glideDevice == nullptr || src == nullptr))
+      return;
+
+    glideDevice->UtilTexDownloadMipMap(mmid, src, table);
   }
 
-  DLLEXPORT void __stdcall guTexDownloadMipMapLevel(GrMipMapId_t mmid, FxI32 lod, const void ** src) {
-    DEBUGLOG("stub: guTexDownloadMipMapLevel");
+  DLLEXPORT void __stdcall guTexDownloadMipMapLevel(GrMipMapId_t mmid, glide2x::GrLOD_t thisLod, const void ** src) {
+    DEBUGLOG(">>> guTexDownloadMipMapLevel");
+
+    if (unlikely(glideDevice == nullptr || src == nullptr))
+      return;
+
+    glideDevice->UtilTexDownloadMipMapLevel(mmid, thisLod, src);
   }
 
   DLLEXPORT GrMipMapId_t __stdcall guTexGetCurrentMipMap(GrChipID_t tmu) {
-    DEBUGLOG("stub: guTexGetCurrentMipMap");
-    return 0;
+    DEBUGLOG(">>> guTexGetCurrentMipMap");
+
+    if (unlikely(glideDevice == nullptr))
+      return 0;
+
+    return glideDevice->UtilTexGetCurrentMipMap(tmu);
   }
 
   DLLEXPORT glide2x::GrMipMapInfo* __stdcall guTexGetMipMapInfo(GrMipMapId_t mmid) {
-    DEBUGLOG("stub: guTexGetMipMapInfo");
-    return nullptr;
+    DEBUGLOG(">>> guTexGetMipMapInfo");
+
+    if (unlikely(glideDevice == nullptr))
+      return nullptr;
+
+    return glideDevice->UtilTexGetMipMapInfo(mmid);
   }
 
   DLLEXPORT FxU32 __stdcall guTexMemQueryAvail(GrChipID_t tmu) {
     DEBUGLOG(">>> guTexMemQueryAvail");
 
-    Rc<GlideTMU> TMU = glideDevice->GetTMU(tmu);
-    if (unlikely(TMU == nullptr))
+    if (unlikely(glideDevice == nullptr))
       return 0;
 
-    // TODO: proper free size when guTex* implemented
-
-    return TMU->GetMaximumAddress();
+    return glideDevice->UtilTexMemQueryAvail(tmu);
   }
 
   DLLEXPORT void __stdcall guTexMemReset(void) {
-    DEBUGLOG("stub: guTexMemReset");
+    DEBUGLOG(">>> guTexMemReset");
+
+    if (unlikely(glideDevice == nullptr))
+      return;
+
+    glideDevice->UtilTexMemReset();
   }
 
   DLLEXPORT void __stdcall guTexSource(GrMipMapId_t id) {
-    DEBUGLOG("stub: guTexSource");
+    DEBUGLOG(">>> guTexSource");
+
+    if (unlikely(glideDevice == nullptr))
+      return;
+
+    glideDevice->UtilTexSource(id);
   }
 
   DLLEXPORT FxBool __stdcall pciClose(void) {

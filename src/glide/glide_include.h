@@ -102,13 +102,13 @@ static std::array<GlideRefreshRate, 10> GlideStaticRefreshRates = {{
 }};
 
 static std::array<GlideBoardConfiguration, 8> GlideBoards = {{
-  { "Voodoo Graphics", GR_SSTTYPE_Voodoo, 4, 1, 2, 4, 1, 256, FXFALSE, FXFALSE, FXTRUE },
-  { "Voodoo Rush", GR_SSTTYPE_SST96, 4, 1, 1, 4, 1, 256, FXFALSE, FXFALSE, FXTRUE },
-  { "Voodoo 2", GR_SSTTYPE_Voodoo2, 4, 1, 2, 4, 1, 256, FXFALSE, FXFALSE, FXTRUE },
-  { "Voodoo Banshee", GR_SSTTYPE_Banshee, 16, 1, 1, 16, 1, 256, FXTRUE, FXFALSE, FXFALSE },
-  { "Voodoo 3 3000", GR_SSTTYPE_Voodoo3, 16, 1, 2, 16, 1, 256, FXTRUE, FXFALSE, FXFALSE },
-  { "Voodoo 4 4500", GR_SSTTYPE_Voodoo4, 32, 1, 2, 16, 1, 2048, FXTRUE, FXFALSE, FXFALSE },
-  { "Voodoo 5 6000", GR_SSTTYPE_Voodoo5, 64, 1, 4, 32, 1, 2048, FXTRUE, FXFALSE, FXFALSE },
+  { "Voodoo Graphics", GR_SSTTYPE_Voodoo, 4, 2, 1, 16, 1, 256, FXFALSE, FXFALSE, FXTRUE },
+  { "Voodoo Rush", GR_SSTTYPE_SST96, 4, 2, 1, 4, 1, 256, FXFALSE, FXFALSE, FXTRUE },
+  { "Voodoo 2", GR_SSTTYPE_Voodoo2, 4, 2, 2, 4, 1, 256, FXFALSE, FXFALSE, FXTRUE },
+  { "Voodoo Banshee", GR_SSTTYPE_Banshee, 16, 2, 1, 16, 1, 256, FXTRUE, FXFALSE, FXFALSE },
+  { "Voodoo 3 3000", GR_SSTTYPE_Voodoo3, 16, 2, 2, 16, 1, 256, FXTRUE, FXFALSE, FXFALSE },
+  { "Voodoo 4 4500", GR_SSTTYPE_Voodoo4, 32, 2, 2, 16, 1, 2048, FXTRUE, FXFALSE, FXFALSE },
+  { "Voodoo 5 6000", GR_SSTTYPE_Voodoo5, 64, 2, 4, 32, 1, 2048, FXTRUE, FXFALSE, FXFALSE },
 }};
 
 enum class GLIDEAPI : uint32_t {

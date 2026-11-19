@@ -51,6 +51,11 @@ namespace dxvk {
     return "UNKNOWN";
   }
 
+  struct MipMapInfo {
+    glide2x::GrMipMapInfo info;
+    FxU32 size;
+  };
+
   enum class GlideDeviceDirtyFlag : uint32_t {
     Blend,
     Depth,
@@ -262,8 +267,8 @@ namespace dxvk {
     void SetTexCombine(GrChipID_t tmu, GrCombineFunction_t rgb_function, GrCombineFactor_t rgb_factor, GrCombineFunction_t alpha_function, GrCombineFactor_t alpha_factor, FxBool rgb_invert, FxBool alpha_invert);
     void SetTexCombineFunction(GrChipID_t tmu, GrTextureCombineFnc_t fnc);
     void SetTexClampMode(GrChipID_t tmu, GrTextureClampMode_t s_clampmode, GrTextureClampMode_t t_clampmode);
-    void SetTexDetailControl(GrChipID_t tmu, FxI32 lod_bias, FxU8 detail_scale, FxFloat detail_max);
-    void SetTexFilterMode(GrChipID_t tmu, GrTextureFilterMode_t minfilter_mode, GrTextureFilterMode_t magfilter_mode);
+    void SetTexDetailControl(GrChipID_t tmu, FxI32 lodBias, FxU8 detail_scale, FxFloat detail_max);
+    void SetTexFilterMode(GrChipID_t tmu, GrTextureFilterMode_t filterMin, GrTextureFilterMode_t filterMag);
     void SetTexLodBiasValue(GrChipID_t tmu, FxFloat bias);
     void SetTexMipMapMode(GrChipID_t tmu, GrMipMapMode_t mode, FxBool lodBlend);
     void SetTexSource(GrChipID_t tmu, FxU32 startAddress, MipMapLevelMask_t evenOdd
@@ -286,6 +291,15 @@ namespace dxvk {
     void UtilFogGenerateLinear(GrFog_t* table, FxFloat nearZ, FxFloat farZ);
     void UtilFogGenerateExp(GrFog_t* fogTable, FxFloat density);
     void UtilFogGenerateExp2(GrFog_t* fogTable, FxFloat density);
+    GrMipMapId_t UtilTexAllocateMemory(GrChipID_t tmu, MipMapLevelMask_t evenOdd, FxI32 width, FxI32 height, GrTextureFormat_t format, GrMipMapMode_t mipMapMode, glide2x::GrLOD_t smallLod, glide2x::GrLOD_t largeLod, glide2x::GrAspectRatio_t aspectRatio, GrTextureClampMode_t clampModeS, GrTextureClampMode_t clampModeT, GrTextureFilterMode_t filterMin, GrTextureFilterMode_t filterMag, FxFloat lodBias, FxBool Trilinear);
+    FxBool UtilTexChangeAttributes(GrMipMapId_t mmid, FxI32 width, FxI32 height, GrTextureFormat_t format, GrMipMapMode_t mipMapMode, glide2x::GrLOD_t smallLod, glide2x::GrLOD_t largeLod, glide2x::GrAspectRatio_t aspectRatio, GrTextureClampMode_t clampModeS, GrTextureClampMode_t clampModeT, GrTextureFilterMode_t filterMin, GrTextureFilterMode_t filterMag);
+    void UtilTexDownloadMipMap(GrMipMapId_t mmid, const void *src, const GuNccTable *table);
+    void UtilTexDownloadMipMapLevel(GrMipMapId_t mmid, glide2x::GrLOD_t thisLod, const void ** src);
+    GrMipMapId_t UtilTexGetCurrentMipMap(GrChipID_t tmu);
+    glide2x::GrMipMapInfo* UtilTexGetMipMapInfo(GrMipMapId_t mmid);
+    FxU32 UtilTexMemQueryAvail(GrChipID_t tmu);
+    void UtilTexMemReset();
+    void UtilTexSource(GrMipMapId_t id);
 
     DxvkStagingBuffer* GetStagingBuffer() {
       return &m_stagingBuffer;
@@ -406,6 +420,7 @@ namespace dxvk {
     void BindRasterizerState();
     void BindViewportAndScissor();
     void BindVertexLayout();
+    GlideTMU::TMUAddress TMUFindFreeBlock(GrChipID_t tmu, FxU32 size);
     template<typename T>
     void UpdatePushDataBlock(const T& Block);
     void UpdatePushData();
@@ -456,29 +471,39 @@ namespace dxvk {
       Rc<GlideTMU>,
       GLIDE_MAX_TMU>                m_tmu = { };
 
-    FxU32 m_colorBuffers = 0;
-    FxU32 m_auxBuffers = 0;
+    FxU32                           m_colorBuffers = 0;
+    FxU32                           m_auxBuffers = 0;
 
-    HWND m_window;
+    HWND                            m_window = nullptr;
+    FxBool                          m_windowOpened = FXFALSE;
+    wsi::DxvkWindowState            m_windowState = { };
+    wsi::WsiMode                    m_mode = { };
+
     struct {
       FxU32 width = 0;
       FxU32 height = 0;
       FxU32 refreshRate = 0;
     } m_screen;
-    FxBool                         logoShown = FXFALSE;
+    FxBool                          logoShown = FXFALSE;
 
-    Rc<GlideCommonTexture>         m_rt = nullptr;
+    Rc<GlideCommonTexture>          m_rt = nullptr;
 
-    GlideState                     m_state;
-    constexpr static uint32_t      SamplerCountBits = 12u;
-    std::atomic<uint64_t>          m_lastSamplerStats = { 0u };
-    uint64_t                       m_samplerBindCount = 0u;
-    std::atomic<uint32_t>          m_vertexLayoutLastID = { 0u };
-    std::atomic<uint32_t>          m_stateLastID = { 0u };
+    GlideState                      m_state;
+    constexpr static uint32_t       SamplerCountBits = 12u;
+    std::atomic<uint64_t>           m_lastSamplerStats = { 0u };
+    uint64_t                        m_samplerBindCount = 0u;
+    std::atomic<uint32_t>           m_vertexLayoutLastID = { 0u };
+    std::atomic<uint32_t>           m_stateLastID = { 0u };
     std::unordered_map<int,
-      GlideVertex>                 m_vertexLayouts;
+      GlideVertex>                  m_vertexLayouts;
     std::unordered_map<int,
-      GlideState>                  m_states;
+      GlideState>                   m_states;
+
+    std::atomic_uint32_t            m_lastTextureID = 0;
+    std::array<GrMipMapId_t,
+      GLIDE_MAX_TMU>                m_currentTextureIDs = { };
+    std::map<
+      GrMipMapId_t, MipMapInfo>     m_textures = { };
   };
 
 }

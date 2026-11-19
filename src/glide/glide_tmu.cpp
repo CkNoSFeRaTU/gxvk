@@ -119,7 +119,7 @@ namespace dxvk {
     m_currentNcc = table;
   }
 
-  FxBool GlideTMU::SetTable(GrTexTable_t type, void *data, int start, int stop) {
+  FxBool GlideTMU::SetTable(GrTexTable_t type, const void *data, int start, int stop) {
     DEBUGLOG(str::format("TMU ", m_id, " table selection: ", type));
     if (unlikely(data == nullptr))
       return FXFALSE;
@@ -137,7 +137,7 @@ namespace dxvk {
         start = std::clamp(start, 0, int(VOODOO_PALETTE_TABLE_SIZE - 1));
         stop = std::clamp(stop, 0, int(VOODOO_PALETTE_TABLE_SIZE - 1));
         for (int i = start; i <= stop; ++i) {
-          FxU32 value = static_cast<FxU32*>(data)[i];
+          const FxU32 value = static_cast<const FxU32*>(data)[i];
 
           const FxU32 a = (value >> 18) & 0x3F;
           const FxU32 r = (value >> 12) & 0x3F;

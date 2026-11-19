@@ -192,8 +192,8 @@ namespace dxvk {
     if (ptr != nullptr) {
       UtilConvertRGBAToImage(UtilLFBWriteModeToIFormat(m_lockmode), ptr, m_convertBuffer.data(), m_desc.Width, m_desc.Height);
 
-      if (unlikely((m_device->GetOptions()->lfbMode == GlideLFBMode::LFB_AUTO && m_device->GetAPI() == GLIDEAPI::API_GLIDE_1X)
-                || m_device->GetOptions()->lfbMode == GlideLFBMode::LFB_LEGACY)) {
+      if (unlikely((m_device->GetOptions()->LFBMode == GlideLFBMode::LFB_AUTO && m_device->GetAPI() == GLIDEAPI::API_GLIDE_1X)
+                || m_device->GetOptions()->LFBMode == GlideLFBMode::LFB_LEGACY)) {
         std::vector<uint8_t> tempBuffer;
         constexpr FxU32 legacyWidth = 1024u;
         constexpr FxU32 legacyHeight = 1024u;
@@ -234,8 +234,8 @@ namespace dxvk {
     VkExtent3D levelExtent = m_image->mipLevelExtent(subresources.baseMipLevel);
     DxvkBufferSlice slice = DxvkBufferSlice(m_buffer, 0, size);
 
-    if (unlikely((m_device->GetOptions()->lfbMode == GlideLFBMode::LFB_AUTO && m_device->GetAPI() == GLIDEAPI::API_GLIDE_1X)
-              || m_device->GetOptions()->lfbMode == GlideLFBMode::LFB_LEGACY)) {
+    if (unlikely((m_device->GetOptions()->LFBMode == GlideLFBMode::LFB_AUTO && m_device->GetAPI() == GLIDEAPI::API_GLIDE_1X)
+              || m_device->GetOptions()->LFBMode == GlideLFBMode::LFB_LEGACY)) {
       std::vector<uint8_t> tempBuffer;
       constexpr FxU32 legacyWidth = 1024u;
       constexpr FxU32 legacyHeight = 1024u;
@@ -247,7 +247,6 @@ namespace dxvk {
 
       tempBuffer.resize(legacySize);
       memcpy(tempBuffer.data(), m_convertBuffer.data(), legacySize);
-      // memset(tempBuffer.data(), 0xFF, legacySize / 4);
 
       for (FxU32 y = 0; y < h; ++y) {
         memcpy(m_convertBuffer.data() + y * stride, tempBuffer.data() + y * legacyStride, w * m_blockSize);
@@ -314,7 +313,7 @@ namespace dxvk {
     if (unlikely(m_blockSize == 0))
       return nullptr;
 
-    const FxU32 bufferSize = std::max(m_desc.Width * m_desc.Height * m_blockSize, 1024 * 1024 * 4u);
+    const FxU32 bufferSize = std::max(m_desc.Width * m_desc.Height * m_blockSize, 1024 * 1024 * 2u);
     if (unlikely(bufferSize > m_convertBuffer.size())) {
       m_convertBuffer.resize(bufferSize);
     }

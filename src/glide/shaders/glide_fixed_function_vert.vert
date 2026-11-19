@@ -159,8 +159,8 @@ void main() {
     out_FOGEXT = in_FOGEXT;
 
     out_Color = vec4(0.0);
-    if (vertexHasRGB() && !(any(isnan(in_RGB))) && !(isnan(in_A))) {
-      out_Color = vec4(in_RGB, in_A);
+    if (vertexHasRGB() && !(any(isnan(in_RGB)))) {
+      out_Color = vec4(in_RGB, !isnan(in_A) ? in_A : 1.0);
     } else if (!any(isnan(vec4(in_PARGB)))) {
       out_Color = swizzleColor(GR_COLORFORMAT_BGRA, in_PARGB);
     }

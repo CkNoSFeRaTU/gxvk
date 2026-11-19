@@ -1453,12 +1453,6 @@ namespace dxvk {
      * large as reported TMU capacity             */
     { R"(\\Rayman2\.exe$)", {{
       { "glide.card",                     "voodoo" },
-      { "glide.doubleSizedTMU",             "True" },
-    }} },
-    /* X-Com Enforcer                             *
-     * Has issues with choosing correct palette   */
-    { R"(\\System\\XCom\.exe$)", {{
-      { "glide.perTMUTables",              "False" },
     }} },
   };
 

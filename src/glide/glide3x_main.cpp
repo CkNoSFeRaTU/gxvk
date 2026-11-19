@@ -199,7 +199,7 @@ extern "C" {
     if (unlikely(glideDevice == nullptr))
       return;
 
-    glideDevice->SetDepthBiasLevel(level);
+    glideDevice->SetDepthBiasLevel(static_cast<FxI16>(level));
   }
 
   DLLEXPORT void __stdcall grDepthBufferFunction(GrCmpFnc_t function) {
@@ -577,11 +577,11 @@ extern "C" {
     switch (pname) {
       case glide3x::GR_EXTENSION:
         // TODO: PALETTE6666 is buggy for some reason in NFS5, investigate
-        return "CHROMARANGE FOGCOORD TEXCHROMA TEXMIRROR ";
+        // TODO: CHROMARANGE TEXCHROMA
+        return "FOGCOORD TEXMIRROR ";
       case glide3x::GR_HARDWARE:
-        if (likely(glideDevice != nullptr))
-          return glideDevice->GetBoardConfiguration()->name.c_str();
-        return "GXVK";
+        initDXVKDevice();
+        return glideDevice->GetBoardConfiguration()->name.c_str();
       case glide3x::GR_RENDERER:
         return "Glide";
       case glide3x::GR_VENDOR:
@@ -898,13 +898,13 @@ extern "C" {
     glideDevice->SetTexCombine(tmu, rgb_function, rgb_factor, alpha_function, alpha_factor, rgb_invert, alpha_invert);
   }
 
-  DLLEXPORT void __stdcall grTexDetailControl(GrChipID_t tmu, FxI32 lod_bias, FxU8 detail_scale, FxFloat detail_max) {
+  DLLEXPORT void __stdcall grTexDetailControl(GrChipID_t tmu, FxI32 lodBias, FxU8 detailScale, FxFloat detailMax) {
     DEBUGLOG(">>> grTexDetailControl");
 
     if (unlikely(glideDevice == nullptr))
       return;
 
-    glideDevice->SetTexDetailControl(tmu, lod_bias, detail_scale, detail_max);
+    glideDevice->SetTexDetailControl(tmu, lodBias, detailScale, detailMax);
   }
 
   DLLEXPORT void __stdcall grTexDownloadMipMap(GrChipID_t tmu, FxU32 startAddress, MipMapLevelMask_t evenOdd, glide3x::GrTexInfo *info) {
@@ -998,13 +998,13 @@ extern "C" {
     }
   }
 
-  DLLEXPORT void __stdcall grTexFilterMode(GrChipID_t tmu, GrTextureFilterMode_t minfilter_mode, GrTextureFilterMode_t magfilter_mode) {
+  DLLEXPORT void __stdcall grTexFilterMode(GrChipID_t tmu, GrTextureFilterMode_t filterMin, GrTextureFilterMode_t filterMag) {
     DEBUGLOG(">>> grTexFilterMode");
 
     if (unlikely(glideDevice == nullptr))
       return;
 
-    glideDevice->SetTexFilterMode(tmu, minfilter_mode, magfilter_mode);
+    glideDevice->SetTexFilterMode(tmu, filterMin, filterMag);
   }
 
   DLLEXPORT void __stdcall grTexLodBiasValue(GrChipID_t tmu, FxFloat bias) {

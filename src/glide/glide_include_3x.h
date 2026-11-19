@@ -158,18 +158,18 @@ namespace glide3x {
   } GrResolution;
 
   typedef struct {
-    FxU32               width, height;
-    GrLOD_t             small_lod, large_lod;
-    GrAspectRatio_t     aspect_ratio;
-    GrTextureFormat_t   format;
+    FxU32             width, height;
+    GrLOD_t           smallLod, largeLod;
+    GrAspectRatio_t   aspectRatio;
+    GrTextureFormat_t format;
   } Gu3dfHeader;
 
   typedef struct
   {
     Gu3dfHeader  header;
     GuTexTable   table;
-    void        *data;
-    FxU32        mem_required;    /* memory required for mip map in bytes. */
+    void*        data;
+    FxU32        requiredMemory; /* memory required for mip map in bytes. */
   } Gu3dfInfo;
 
   typedef struct {
@@ -177,6 +177,6 @@ namespace glide3x {
       GrLOD_t           largeLodLog2;
       GrAspectRatio_t   aspectRatioLog2;
       GrTextureFormat_t format;
-      void              *data;
+      void*             data;
   } GrTexInfo;
 }

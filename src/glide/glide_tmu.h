@@ -37,7 +37,7 @@ namespace dxvk {
       MipMapLevelMask_t evenOdd = GR_MIPMAPLEVELMASK_NONE;
       FxU32 size = 0;
 
-      uint8_t *data = nullptr;
+      const uint8_t *data = nullptr;
     };
 
     GlideTMU(GlideDevice* pDevice, GrChipID_t id, FxU32 size);
@@ -62,7 +62,7 @@ namespace dxvk {
 
     void SelectNCCTable(GrNCCTable_t table);
 
-    FxBool SetTable(GrTexTable_t type, void *data, int start = -1, int stop = -1);
+    FxBool SetTable(GrTexTable_t type, const void *data, int start = -1, int stop = -1);
 
     FxBool UploadTextures(TMUMetadata metadata);
 
